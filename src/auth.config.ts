@@ -21,6 +21,7 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.id = user.id
         token.role = (user as any).role
+        token.color = (user as any).color
       }
       return token
     },
@@ -28,6 +29,7 @@ export const authConfig: NextAuthConfig = {
       if (token) {
         session.user.id = token.id as string
         session.user.role = token.role as any
+        session.user.color = token.color as string
       }
       return session
     },
