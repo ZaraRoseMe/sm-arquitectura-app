@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -45,7 +46,6 @@ export default function LoginPage() {
                                 radial-gradient(circle at 80% 20%, rgba(79,82,229,0.3) 0%, transparent 50%)`,
             }}
           />
-          {/* Grid lines */}
           <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
@@ -74,17 +74,41 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="relative grid grid-cols-3 gap-4">
-          {[
-            { value: '3', label: 'Proyectos activos' },
-            { value: '11', label: 'Tareas en curso' },
-            { value: '4', label: 'Colaboradores' },
-          ].map((stat) => (
-            <div key={stat.label} className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <div className="text-white text-2xl font-semibold mb-1">{stat.value}</div>
-              <div className="text-white/50 text-sm">{stat.label}</div>
+        <div className="relative space-y-6">
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { value: '3', label: 'Proyectos activos' },
+              { value: '11', label: 'Tareas en curso' },
+              { value: '4', label: 'Colaboradores' },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="text-white text-2xl font-semibold mb-1">{stat.value}</div>
+                <div className="text-white/50 text-sm">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ZR Nexus branding */}
+          <div className="flex items-center gap-3 pt-2 border-t border-white/10">
+            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0">
+              <Image
+                src="/zr-nexus-logo.png"
+                alt="ZR Nexus"
+                width={32}
+                height={32}
+                className="object-contain"
+              />
             </div>
-          ))}
+            <p className="text-white/40 text-xs">
+              desarrollado por{' '}
+              <span
+                className="text-white/70 font-medium"
+                style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+              >
+                ZR Nexus
+              </span>
+            </p>
+          </div>
         </div>
       </div>
 
@@ -181,6 +205,15 @@ export default function LoginPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* ZR Nexus mobile */}
+          <div className="mt-8 flex items-center justify-center gap-2 lg:hidden">
+            <Image src="/zr-nexus-logo.png" alt="ZR Nexus" width={20} height={20} className="opacity-40 object-contain" />
+            <p className="text-xs text-gray-400">
+              desarrollado por{' '}
+              <span style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>ZR Nexus</span>
+            </p>
           </div>
         </div>
       </div>

@@ -1,11 +1,12 @@
 'use client'
 // src/components/dashboard/WorkloadChart.tsx
-import { generateAvatarColor, getInitials } from '@/lib/utils'
+import { getInitials } from '@/lib/utils'
 
 interface WorkloadChartProps {
   users: {
     id: string
     name: string
+    color?: string
     tasks: any[]
     _count: { tasks: number }
   }[]
@@ -25,7 +26,7 @@ export default function WorkloadChart({ users }: WorkloadChartProps) {
         {users.map((user) => {
           const activeTasks = user.tasks.length
           const percentage = Math.round((activeTasks / maxTasks) * 100)
-          const avatarColor = generateAvatarColor(user.name)
+          const avatarColor = user.color || '#6366F1'
           const isOverloaded = activeTasks > 3
 
           return (
