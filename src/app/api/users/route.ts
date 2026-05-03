@@ -1,52 +1,38 @@
-// src/app/api/users/route.ts
+// src/app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
-export async function GET() {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
+  const { id } = await params
+  const body = await req.json()
+  const { name, email, role, password } = body
 
-  const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
-    orderBy: { createdAt: 'asc' },
-  })
+  const data: any = {
+    ...(name && { name }),
+    ...(email && { email }),
+    ...(role && { role }),
+  }
+  if (password) {
+    data.password = await bcrypt.hash(password, 12)
+  }
 
-  return NextResponse.json(users)
+  const user = await prisma.user.update({ where: { id }, data })
+  const { password: _, ...userWithoutPassword } = user
+  return NextResponse.json(userWithoutPassword)
 }
 
-export async function POST(req: NextRequest) {
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-
-  const body = await req.json()
-  const { name, email, password, role } = body
-
-  if (!name || !email || !password) {
-    return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
-  }
-
-  const existing = await prisma.user.findUnique({ where: { email } })
-  if (existing) {
-    return NextResponse.json({ error: 'El email ya está en uso' }, { status: 409 })
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 12)
-
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-      role: role || 'COLABORADOR',
-    },
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
-  })
-
-  return NextResponse.json(user, { status: 201 })
+  const { id } = await params
+  await prisma.user.delete({ where: { id } })
+  return NextResponse.json({ success: true })
 }

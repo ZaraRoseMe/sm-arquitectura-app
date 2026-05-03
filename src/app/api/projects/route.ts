@@ -1,45 +1,49 @@
-// src/app/api/projects/route.ts
+// src/app/api/projects/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const projects = await prisma.project.findMany({
+  const { id } = await params
+  const project = await prisma.project.findUnique({
+    where: { id },
     include: {
-      tasks: { include: { user: { select: { id: true, name: true } } } },
-      _count: { select: { tasks: true } },
+      tasks: { include: { user: true, pauseLogs: true } },
     },
-    orderBy: { createdAt: 'desc' },
   })
-
-  return NextResponse.json(projects)
+  if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(project)
 }
 
-export async function POST(req: NextRequest) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-
+  const { id } = await params
   const body = await req.json()
   const { name, description, startDate, endDate, color } = body
-
-  if (!name || !startDate || !endDate) {
-    return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
-  }
-
-  const project = await prisma.project.create({
+  const project = await prisma.project.update({
+    where: { id },
     data: {
-      name,
-      description,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      color: color || '#3B82F6',
+      ...(name && { name }),
+      ...(description !== undefined && { description }),
+      ...(startDate && { startDate: new Date(startDate) }),
+      ...(endDate && { endDate: new Date(endDate) }),
+      ...(color && { color }),
     },
   })
+  return NextResponse.json(project)
+}
 
-  return NextResponse.json(project, { status: 201 })
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  }
+  const { id } = await params
+  await prisma.project.delete({ where: { id } })
+  return NextResponse.json({ success: true })
 }
