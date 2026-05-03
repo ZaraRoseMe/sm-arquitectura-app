@@ -56,7 +56,7 @@ export default function UsersClient({ users: initialUsers, currentUserId }: User
 
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {users.map((user) => {
-          const avatarColor = generateAvatarColor(user.name)
+          const avatarColor = user.color || generateAvatarColor(user.name)
           const activeTasks = user.tasks.filter((t: any) => t.status === 'EN_PROGRESO')
 
           return (
