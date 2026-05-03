@@ -132,7 +132,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
               <select
                 className="input"
                 value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
+                onChange={(e) => setForm({ ...form, status: e.target.value as any })}
               >
                 <option value="PENDIENTE">Pendiente</option>
                 <option value="EN_PROGRESO">En Progreso</option>

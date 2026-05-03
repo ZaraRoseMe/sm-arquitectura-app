@@ -101,7 +101,7 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
             <select
               className="input"
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              onChange={(e) => setForm({ ...form, role: e.target.value as any })}
             >
               <option value="COLABORADOR">Colaborador</option>
               <option value="ADMIN">Administrador</option>
