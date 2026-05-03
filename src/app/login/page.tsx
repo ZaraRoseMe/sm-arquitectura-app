@@ -5,7 +5,6 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
-import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -38,7 +37,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-neutral-950 flex">
       {/* Left panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-brand-950 relative overflow-hidden flex-col justify-between p-12">
-        {/* Background pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 left-0 w-full h-full"
             style={{
@@ -88,22 +86,13 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* ZR Nexus branding */}
-          <div className="flex items-center gap-3 pt-2 border-t border-white/10">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0">
-              <Image
-                src="/zr-nexus-logo.png"
-                alt="ZR Nexus"
-                width={32}
-                height={32}
-                className="object-contain"
-              />
-            </div>
+          {/* ZR Nexus branding — solo texto */}
+          <div className="pt-2 border-t border-white/10">
             <p className="text-white/40 text-xs">
               desarrollado por{' '}
               <span
-                className="text-white/70 font-medium"
-                style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+                className="text-white/70"
+                style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic', fontSize: '13px' }}
               >
                 ZR Nexus
               </span>
@@ -181,7 +170,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials */}
           <div className="mt-8 p-4 bg-gray-50 dark:bg-neutral-900 rounded-xl border border-gray-100 dark:border-neutral-800">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">Credenciales de demo</p>
             <div className="space-y-2">
@@ -208,13 +196,10 @@ export default function LoginPage() {
           </div>
 
           {/* ZR Nexus mobile */}
-          <div className="mt-8 flex items-center justify-center gap-2 lg:hidden">
-            <Image src="/zr-nexus-logo.png" alt="ZR Nexus" width={20} height={20} className="opacity-40 object-contain" />
-            <p className="text-xs text-gray-400">
-              desarrollado por{' '}
-              <span style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>ZR Nexus</span>
-            </p>
-          </div>
+          <p className="mt-6 text-center text-xs text-gray-400 lg:hidden">
+            desarrollado por{' '}
+            <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>ZR Nexus</span>
+          </p>
         </div>
       </div>
     </div>
