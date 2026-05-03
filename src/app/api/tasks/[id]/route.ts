@@ -25,12 +25,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const currentTask = await prisma.task.findUnique({ where: { id } })
   if (!currentTask) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Handle pause/resume logic
   if (status === 'PAUSADO' && currentTask.status !== 'PAUSADO') {
     await prisma.pauseLog.create({
-      data: { taskId: id, pausedAt: new Date(), reason: body.pauseReason || 'Sin motivo' },
+      data: {
+        taskId: id,
+        userId: currentTask.userId,
+        pausedAt: new Date(),
+        reason: body.pauseReason || 'Sin motivo',
+      },
     })
   }
+
   if (status && status !== 'PAUSADO' && currentTask.status === 'PAUSADO') {
     const lastPause = await prisma.pauseLog.findFirst({
       where: { taskId: id, resumedAt: null },
