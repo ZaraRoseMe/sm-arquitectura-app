@@ -4,38 +4,35 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-
+  const { id } = await params
   const body = await req.json()
-  const { name, email, password, role } = body
+  const { name, email, role, password } = body
 
-  const updateData: any = {}
-  if (name) updateData.name = name
-  if (email) updateData.email = email
-  if (role) updateData.role = role
+  const data: any = {
+    ...(name && { name }),
+    ...(email && { email }),
+    ...(role && { role }),
+  }
   if (password) {
-    updateData.password = await bcrypt.hash(password, 12)
+    data.password = await bcrypt.hash(password, 12)
   }
 
-  const user = await prisma.user.update({
-    where: { id: params.id },
-    data: updateData,
-    select: { id: true, name: true, email: true, role: true },
-  })
-
-  return NextResponse.json(user)
+  const user = await prisma.user.update({ where: { id }, data })
+  const { password: _, ...userWithoutPassword } = user
+  return NextResponse.json(userWithoutPassword)
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-
-  await prisma.user.delete({ where: { id: params.id } })
+  const { id } = await params
+  await prisma.user.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }
