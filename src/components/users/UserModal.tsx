@@ -4,6 +4,12 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+const PRESET_COLORS = [
+  '#6366F1', '#3B82F6', '#0EA5E9', '#10B981', '#F59E0B',
+  '#EF4444', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316',
+  '#84CC16', '#06B6D4', '#A855F7', '#E11D48', '#64748B',
+]
+
 interface UserModalProps {
   user: any | null
   onClose: () => void
@@ -16,6 +22,7 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
     email: user?.email || '',
     password: '',
     role: user?.role || 'COLABORADOR',
+    color: user?.color || '#6366F1',
   })
   const [loading, setLoading] = useState(false)
 
@@ -106,6 +113,43 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
               <option value="COLABORADOR">Colaborador</option>
               <option value="ADMIN">Administrador</option>
             </select>
+          </div>
+
+          {/* Color picker */}
+          <div>
+            <label className="label">Color en el Gantt</label>
+            <div className="flex items-center gap-3 mt-1">
+              {/* Preview */}
+              <div
+                className="w-9 h-9 rounded-full border-2 border-white shadow-md flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                style={{ backgroundColor: form.color }}
+              >
+                {form.name ? form.name.charAt(0).toUpperCase() : '?'}
+              </div>
+              {/* Preset swatches */}
+              <div className="flex flex-wrap gap-2">
+                {PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm({ ...form, color: c })}
+                    className="w-6 h-6 rounded-full transition-transform hover:scale-110 focus:outline-none"
+                    style={{
+                      backgroundColor: c,
+                      boxShadow: form.color === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : undefined,
+                    }}
+                  />
+                ))}
+                {/* Custom color input */}
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm({ ...form, color: e.target.value })}
+                  className="w-6 h-6 rounded-full cursor-pointer border-0 p-0 bg-transparent"
+                  title="Color personalizado"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
