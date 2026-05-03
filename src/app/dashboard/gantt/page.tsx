@@ -17,7 +17,7 @@ export default async function GanttPage() {
       orderBy: [{ userId: 'asc' }, { startDate: 'asc' }],
     }),
     isAdmin
-      ? prisma.user.findMany({ select: { id: true, name: true } })
+      ? prisma.user.findMany({ select: { id: true, name: true, color: true } })
       : Promise.resolve([{ id: session.user.id, name: session.user.name || '' }]),
     prisma.project.findMany({ select: { id: true, name: true, color: true } }),
   ])
