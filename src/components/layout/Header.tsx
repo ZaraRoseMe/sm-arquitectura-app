@@ -4,20 +4,21 @@ import { useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { Bell, Moon, Sun, LogOut, ChevronDown } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { getInitials, generateAvatarColor, formatDate } from '@/lib/utils'
+import { getInitials, formatDate } from '@/lib/utils'
 
 interface HeaderProps {
   userName: string
   userEmail: string
   userRole: string
+  userColor?: string
 }
 
-export default function Header({ userName, userEmail, userRole }: HeaderProps) {
+export default function Header({ userName, userEmail, userRole, userColor }: HeaderProps) {
   const { darkMode, toggleDarkMode, notifications, unreadCount, markNotificationRead, markAllRead } = useAppStore()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
 
-  const avatarColor = generateAvatarColor(userName || '')
+  const avatarColor = userColor || '#6366F1'
   const initials = getInitials(userName || '')
 
   return (
