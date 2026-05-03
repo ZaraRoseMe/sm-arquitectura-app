@@ -11,12 +11,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   const { id } = await params
   const body = await req.json()
-  const { name, email, role, password } = body
+  const { name, email, role, password, color } = body
 
   const data: any = {
     ...(name && { name }),
     ...(email && { email }),
     ...(role && { role }),
+    ...(color && { color }),
   }
   if (password) {
     data.password = await bcrypt.hash(password, 12)
