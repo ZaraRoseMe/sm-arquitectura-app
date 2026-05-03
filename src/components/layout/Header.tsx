@@ -2,29 +2,29 @@
 // src/components/layout/Header.tsx
 import { useState } from 'react'
 import { signOut } from 'next-auth/react'
-import { Bell, Moon, Sun, LogOut, User, ChevronDown } from 'lucide-react'
+import { Bell, Moon, Sun, LogOut, ChevronDown } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { getInitials, generateAvatarColor, formatDate } from '@/lib/utils'
-import type { Session } from 'next-auth'
 
 interface HeaderProps {
-  session: Session
+  userName: string
+  userEmail: string
+  userRole: string
 }
 
-export default function Header({ session }: HeaderProps) {
+export default function Header({ userName, userEmail, userRole }: HeaderProps) {
   const { darkMode, toggleDarkMode, notifications, unreadCount, markNotificationRead, markAllRead } = useAppStore()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
 
-  const avatarColor = generateAvatarColor(session.user.name || '')
-  const initials = getInitials(session.user.name || '')
+  const avatarColor = generateAvatarColor(userName || '')
+  const initials = getInitials(userName || '')
 
   return (
     <header className="h-16 bg-white dark:bg-neutral-900 border-b border-gray-100 dark:border-neutral-800 flex items-center justify-between px-6 flex-shrink-0">
       <div className="flex-1" />
 
       <div className="flex items-center gap-2">
-        {/* Dark mode toggle */}
         <button
           onClick={toggleDarkMode}
           className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
@@ -32,7 +32,6 @@ export default function Header({ session }: HeaderProps) {
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* Notifications */}
         <div className="relative">
           <button
             onClick={() => { setShowNotifications(!showNotifications); setShowProfile(false) }}
@@ -80,7 +79,6 @@ export default function Header({ session }: HeaderProps) {
           )}
         </div>
 
-        {/* Profile */}
         <div className="relative">
           <button
             onClick={() => { setShowProfile(!showProfile); setShowNotifications(false) }}
@@ -93,9 +91,9 @@ export default function Header({ session }: HeaderProps) {
               {initials}
             </div>
             <div className="hidden sm:block text-left">
-              <p className="text-sm font-medium text-gray-900 dark:text-white leading-none">{session.user.name}</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white leading-none">{userName}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                {session.user.role === 'ADMIN' ? 'Admin' : 'Colaborador'}
+                {userRole === 'ADMIN' ? 'Admin' : 'Colaborador'}
               </p>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -104,8 +102,8 @@ export default function Header({ session }: HeaderProps) {
           {showProfile && (
             <div className="absolute right-0 top-11 w-48 card z-50 shadow-xl animate-slide-up py-1">
               <div className="px-4 py-3 border-b border-gray-100 dark:border-neutral-800">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{session.user.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{session.user.email}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{userName}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{userEmail}</p>
               </div>
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
