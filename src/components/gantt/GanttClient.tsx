@@ -197,9 +197,15 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
   function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
     if (!tasks.length) return null
-    // Use project dates if available, otherwise fall back to task dates
-    const startDate = project.startDate ? new Date(project.startDate) : new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())))
-    const endDate = project.endDate ? new Date(project.endDate) : new Date(Math.max(...tasks.map(t => new Date(t.endDate).getTime())))
+    // Parse date safely — take only YYYY-MM-DD part to avoid UTC shift
+    function safeDate(d: any): Date | null {
+      if (!d) return null
+      const str = typeof d === 'string' ? d : new Date(d).toISOString()
+      const [y, m, day] = str.substring(0, 10).split('-').map(Number)
+      return new Date(y, m - 1, day)
+    }
+    const startDate = safeDate(project.startDate) || new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())))
+    const endDate = safeDate(project.endDate) || new Date(Math.max(...tasks.map(t => new Date(t.endDate).getTime())))
     const left = Math.max(0, differenceInDays(startDate, rangeStart) * cellWidth)
     const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
