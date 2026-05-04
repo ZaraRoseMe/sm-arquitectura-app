@@ -1,8 +1,8 @@
 'use client'
 // src/components/gantt/GanttClient.tsx
 import { useState, useMemo } from 'react'
-import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder } from 'lucide-react'
-import { subDays, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, differenceInDays, addMonths, subMonths } from 'date-fns'
+import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck } from 'lucide-react'
+import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getStatusLabel, getInitials, detectConflicts } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -62,9 +62,16 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [colorMode, setColorMode] = useState<ColorMode>('status')
 
+  const today = new Date()
+  const isCurrentMonth = isSameMonth(currentDate, today)
+
   const cellWidth = DAY_WIDTH_OPTIONS[dayWidth]
-  // Mostrar desde 3 días antes de hoy hasta 2 meses adelante
-  const rangeStart = subDays(new Date(), 3)
+
+  // Si estamos en el mes actual, empezar 3 días antes de hoy
+  // Si navegamos a otro mes, mostrar el mes completo anterior + actual + siguiente
+  const rangeStart = isCurrentMonth
+    ? subDays(today, 3)
+    : startOfMonth(subMonths(currentDate, 1))
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
 
@@ -122,7 +129,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     }
   }
 
-  const todayOffset = differenceInDays(new Date(), rangeStart) * cellWidth
+  const todayOffset = differenceInDays(today, rangeStart) * cellWidth
 
   async function handleExportPDF() {
     const tid = toast.loading('Generando PDF...')
@@ -141,7 +148,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const GT = 18, LW = 52, MH = 5, WH = 4, NH = 4, RH = 8
       const GL = M + LW, GW = W - M - GL
       const CW = GW / days.length
-      const todayX = GL + differenceInDays(new Date(), rangeStart) * CW
+      const todayX = GL + differenceInDays(today, rangeStart) * CW
       const totalHeaderH = MH + WH + NH
 
       let mx = GL
@@ -156,7 +163,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
       days.forEach((day, i) => {
         const x = GL + i * CW
-        const we = isWeekend(day), td = isSameDay(day, new Date())
+        const we = isWeekend(day), td = isSameDay(day, today)
         if (td) doc.setFillColor(79, 82, 220)
         else if (we) doc.setFillColor(218, 219, 240)
         else doc.setFillColor(240, 241, 252)
@@ -170,7 +177,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
       days.forEach((day, i) => {
         const x = GL + i * CW
-        const we = isWeekend(day), td = isSameDay(day, new Date())
+        const we = isWeekend(day), td = isSameDay(day, today)
         if (td) doc.setFillColor(99, 102, 241)
         else if (we) doc.setFillColor(228, 229, 245)
         else doc.setFillColor(248, 249, 255)
@@ -228,10 +235,8 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
           doc.text(task.name.length > 22 ? task.name.substring(0, 21) + '…' : task.name, M + 2, rowY + RH * 0.65)
           const off = differenceInDays(new Date(task.startDate), rangeStart)
           const dur = Math.max(1, differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1)
-          const bx = GL + off * CW
-          const bw = Math.max(CW, dur * CW)
-          const bh = RH * 0.55
-          const by = rowY + (RH - bh) / 2
+          const bx = GL + off * CW, bw = Math.max(CW, dur * CW)
+          const bh = RH * 0.55, by = rowY + (RH - bh) / 2
           if (conflict) { doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4); doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S') }
           doc.setFillColor(bRgb.r, bRgb.g, bRgb.b); doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F')
           if (task.progress > 0 && task.progress < 100) {
@@ -413,10 +418,22 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-4">
+      {/* Navegación */}
+      <div className="flex items-center justify-center gap-3">
         <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="btn-secondary">← Mes anterior</button>
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize">{format(currentDate, 'MMMM yyyy', { locale: es })}</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[120px] text-center">
+          {format(currentDate, 'MMMM yyyy', { locale: es })}
+        </span>
         <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="btn-secondary">Mes siguiente →</button>
+        {!isCurrentMonth && (
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors"
+          >
+            <CalendarCheck className="w-3.5 h-3.5" />
+            Hoy
+          </button>
+        )}
       </div>
     </div>
   )
