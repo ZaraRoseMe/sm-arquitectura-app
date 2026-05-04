@@ -3,12 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day, 12, 0, 0)
+}
+
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const projects = await prisma.project.findMany({
-    include: { tasks: true, _count: { select: { tasks: true } } },
+    include: { tasks: { include: { user: true } }, _count: { select: { tasks: true } } },
     orderBy: { name: 'asc' },
   })
 
@@ -32,10 +37,11 @@ export async function POST(req: NextRequest) {
     data: {
       name,
       description: description || '',
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: parseLocalDate(startDate),
+      endDate: parseLocalDate(endDate),
       color: color || '#3B82F6',
     },
+    include: { tasks: { include: { user: true } }, _count: { select: { tasks: true } } },
   })
 
   return NextResponse.json(project, { status: 201 })
