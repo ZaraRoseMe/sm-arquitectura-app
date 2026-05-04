@@ -11,16 +11,15 @@ export function cn(...inputs: ClassValue[]) {
 // Parse any date safely avoiding UTC timezone shift
 // Handles: Date objects, ISO strings, YYYY-MM-DD strings
 export function parseDate(date: Date | string): Date {
-  if (date instanceof Date) return date
-  const str = typeof date === 'string' ? date : String(date)
-  // If it's just YYYY-MM-DD (no time), parse as local
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
-    const [y, m, d] = str.split('-').map(Number)
-    return new Date(y, m - 1, d)
+  // Always extract YYYY-MM-DD and build local date — never trust timezone conversion
+  let str: string
+  if (date instanceof Date) {
+    // Date objects from JSON may be UTC-shifted — extract date string via toISOString
+    str = date.toISOString().substring(0, 10)
+  } else {
+    str = String(date).substring(0, 10)
   }
-  // If it has time (ISO string from DB), extract date part only
-  const datePart = str.substring(0, 10)
-  const [y, m, d] = datePart.split('-').map(Number)
+  const [y, m, d] = str.split('-').map(Number)
   return new Date(y, m - 1, d)
 }
 
