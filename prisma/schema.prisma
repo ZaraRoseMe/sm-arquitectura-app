@@ -31,9 +31,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  tasks         Task[]
-  notifications Notification[]
-  pauseLogs     PauseLog[]
+  tasks              Task[]
+  notifications      Notification[]
+  pauseLogs          PauseLog[]
+  sentMessages       Message[]  @relation("SentMessages")
+  receivedMessages   Message[]  @relation("ReceivedMessages")
 
   @@map("users")
 }
@@ -70,7 +72,7 @@ model Task {
   userId      String
   user        User       @relation(fields: [userId], references: [id])
 
-  pauseLogs   PauseLog[]
+  pauseLogs     PauseLog[]
   notifications Notification[]
 
   @@map("tasks")
@@ -101,4 +103,19 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  content    String
+  createdAt  DateTime @default(now())
+  read       Boolean  @default(false)
+
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@map("messages")
 }
