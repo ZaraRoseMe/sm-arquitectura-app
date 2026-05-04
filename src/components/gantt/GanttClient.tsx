@@ -131,245 +131,168 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
       const W = 297, H = 210, M = 12
 
-      // ── HEADER ──
-      doc.setFillColor(255, 255, 255)
-      doc.rect(0, 0, W, H, 'F')
-      doc.setFillColor(99, 102, 241)
-      doc.rect(0, 0, W, 14, 'F')
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+      // HEADER
+      doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
+      doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
       doc.text('SM Arquitectura — Diagrama de Gantt', M, 9)
       doc.setFontSize(7); doc.setFont('helvetica', 'normal')
       doc.text(format(new Date(), "dd 'de' MMMM yyyy", { locale: es }), W - M - 32, 9)
 
-      // ── GANTT SETUP ──
       const GT = 18
       const LW = 52
-      const RH = 9
+      const MH = 5   // month row height
+      const WH = 4   // weekday letter row height
+      const NH = 4   // day number row height
+      const RH = 8   // task row height
       const GL = M + LW
       const GW = W - M - GL
       const CW = GW / days.length
       const todayX = GL + differenceInDays(new Date(), rangeStart) * CW
+      const totalHeaderH = MH + WH + NH
 
-      // Month headers
+      // Month row
       let mx = GL
       months.forEach((mo) => {
         const mw = mo.days.length * CW
-        doc.setFillColor(238, 239, 255)
-        doc.rect(mx, GT, mw - 0.1, RH * 0.55, 'F')
-        doc.setDrawColor(210, 212, 240); doc.setLineWidth(0.1)
-        doc.line(mx, GT, mx, GT + RH * 0.55)
-        doc.setTextColor(79, 82, 229); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
-        doc.text(mo.label.toUpperCase().substring(0, 16), mx + 2, GT + 3.5)
+        doc.setFillColor(230, 231, 250); doc.rect(mx, GT, mw - 0.1, MH, 'F')
+        doc.setDrawColor(200, 202, 235); doc.setLineWidth(0.1); doc.line(mx, GT, mx, GT + MH)
+        doc.setTextColor(79, 82, 200); doc.setFontSize(4.5); doc.setFont('helvetica', 'bold')
+        doc.text(mo.label.toUpperCase().substring(0, 18), mx + 1.5, GT + 3.5)
         mx += mw
       })
 
-      // Day cells header
+      // Weekday letter row
       days.forEach((day, i) => {
         const x = GL + i * CW
         const we = isWeekend(day), td = isSameDay(day, new Date())
+        if (td) doc.setFillColor(79, 82, 220)
+        else if (we) doc.setFillColor(218, 219, 240)
+        else doc.setFillColor(240, 241, 252)
+        doc.rect(x, GT + MH, CW, WH, 'F')
+        const letter = format(day, 'EEEEE', { locale: es }).toUpperCase()
+        doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
+        doc.setTextColor(td ? 255 : we ? 130 : 100, td ? 255 : we ? 130 : 110, td ? 255 : we ? 150 : 160)
+        const tw = doc.getTextWidth(letter)
+        doc.text(letter, x + (CW - tw) / 2, GT + MH + WH - 0.8)
+      })
 
-        if (td) {
-          doc.setFillColor(99, 102, 241)
-          doc.rect(x, GT + RH * 0.55, CW, RH * 0.45, 'F')
-        } else if (we) {
-          doc.setFillColor(243, 244, 246)
-          doc.rect(x, GT + RH * 0.55, CW, RH * 0.45, 'F')
-        } else {
-          doc.setFillColor(248, 249, 255)
-          doc.rect(x, GT + RH * 0.55, CW, RH * 0.45, 'F')
-        }
-
-        // Vertical grid line
-        doc.setDrawColor(225, 226, 240); doc.setLineWidth(0.05)
-        doc.line(x, GT + RH * 0.55, x, GT + RH)
-
-        if (CW >= 2.8) {
-          const letter = format(day, 'EEEEE', { locale: es }).toUpperCase()
-          doc.setFontSize(2.6); doc.setFont('helvetica', td ? 'bold' : 'normal')
-          doc.setTextColor(td ? 255 : we ? 160 : 140, td ? 255 : we ? 160 : 140, td ? 255 : we ? 165 : 170)
-          doc.text(letter, x + CW / 2 - 0.7, GT + RH * 0.55 + 2)
-          doc.setFontSize(3)
-          doc.setTextColor(td ? 255 : we ? 150 : 100, td ? 255 : we ? 150 : 100, td ? 255 : we ? 155 : 120)
-          doc.text(format(day, 'd'), x + CW / 2 - (format(day, 'd').length > 1 ? 1.5 : 0.8), GT + RH - 0.8)
-        }
+      // Day number row
+      days.forEach((day, i) => {
+        const x = GL + i * CW
+        const we = isWeekend(day), td = isSameDay(day, new Date())
+        if (td) doc.setFillColor(99, 102, 241)
+        else if (we) doc.setFillColor(228, 229, 245)
+        else doc.setFillColor(248, 249, 255)
+        doc.rect(x, GT + MH + WH, CW, NH, 'F')
+        doc.setDrawColor(220, 221, 240); doc.setLineWidth(0.05)
+        doc.line(x, GT + MH + WH, x, GT + MH + WH + NH)
+        const num = format(day, 'd')
+        doc.setFontSize(3.2); doc.setFont('helvetica', td ? 'bold' : 'normal')
+        doc.setTextColor(td ? 255 : we ? 140 : 80, td ? 255 : we ? 140 : 85, td ? 255 : we ? 160 : 120)
+        const tw = doc.getTextWidth(num)
+        doc.text(num, x + (CW - tw) / 2, GT + MH + WH + NH - 0.8)
       })
 
       // Label col header
-      doc.setFillColor(99, 102, 241)
-      doc.rect(M, GT, LW, RH, 'F')
+      doc.setFillColor(79, 82, 200); doc.rect(M, GT, LW, totalHeaderH, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
-      doc.text('COLABORADOR / TAREA', M + 2, GT + 5.8)
+      doc.text('COLABORADOR / TAREA', M + 2, GT + totalHeaderH / 2 + 1.5)
 
-      let rowY = GT + RH
+      let rowY = GT + totalHeaderH
 
       groupedByUser.forEach(({ user, tasks: ut }) => {
         if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
-
         const uRgb = hexToRgb(user.color || '#6366F1')
-
-        // User header row
-        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b)
-        doc.rect(M, rowY, LW, RH * 0.8, 'F')
-        // light tint for gantt area
-        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b)
-        doc.rect(GL, rowY, GW, RH * 0.8, 'F')
-        // white overlay for tint effect
-        doc.setFillColor(255, 255, 255)
-        // Use opacity simulation: draw a nearly-white rect
+        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b); doc.rect(M, rowY, LW, RH * 0.85, 'F')
         doc.setFillColor(
           Math.min(255, uRgb.r + Math.round((255 - uRgb.r) * 0.88)),
           Math.min(255, uRgb.g + Math.round((255 - uRgb.g) * 0.88)),
           Math.min(255, uRgb.b + Math.round((255 - uRgb.b) * 0.88))
         )
-        doc.rect(GL, rowY, GW, RH * 0.8, 'F')
-
-        // Weekend on user row
+        doc.rect(GL, rowY, GW, RH * 0.85, 'F')
         days.forEach((d, i) => {
-          if (isWeekend(d)) {
-            doc.setFillColor(235, 236, 245)
-            doc.rect(GL + i * CW, rowY, CW, RH * 0.8, 'F')
-          }
+          if (isWeekend(d)) { doc.setFillColor(230, 231, 245); doc.rect(GL + i * CW, rowY, CW, RH * 0.85, 'F') }
         })
-
-        // Avatar
-        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b)
-        doc.circle(M + 3.5, rowY + RH * 0.4, 2.5, 'F')
+        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b); doc.circle(M + 3.5, rowY + RH * 0.43, 2.5, 'F')
         doc.setTextColor(255, 255, 255); doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
-        doc.text(getInitials(user.name), M + 1.8, rowY + RH * 0.52)
-        doc.setTextColor(255, 255, 255); doc.setFontSize(5.5); doc.setFont('helvetica', 'bold')
-        doc.text(user.name, M + 7.5, rowY + RH * 0.6)
-
-        // Today line
+        doc.text(getInitials(user.name), M + 1.8, rowY + RH * 0.54)
+        doc.setFontSize(5.5); doc.text(user.name, M + 7.5, rowY + RH * 0.6)
         doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2)
-        doc.line(todayX, rowY, todayX, rowY + RH * 0.8)
-
-        rowY += RH * 0.8
+        doc.line(todayX, rowY, todayX, rowY + RH * 0.85)
+        rowY += RH * 0.85
 
         ut.forEach((task) => {
           if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
-
           const conflict = conflictIds.has(task.id)
           const bc = getTaskColor(task, conflict)
           const bRgb = hexToRgb(bc)
-
-          // Row background
           doc.setFillColor(252, 252, 255); doc.rect(M, rowY, W - M * 2, RH, 'F')
-          doc.setFillColor(248, 249, 252); doc.rect(GL, rowY, GW, RH, 'F')
-
-          // Weekend columns
+          doc.setFillColor(247, 248, 253); doc.rect(GL, rowY, GW, RH, 'F')
           days.forEach((d, i) => {
-            if (isWeekend(d)) { doc.setFillColor(238, 239, 248); doc.rect(GL + i * CW, rowY, CW, RH, 'F') }
+            if (isWeekend(d)) { doc.setFillColor(237, 238, 248); doc.rect(GL + i * CW, rowY, CW, RH, 'F') }
           })
-
-          // Grid line
-          doc.setDrawColor(230, 231, 242); doc.setLineWidth(0.05)
+          doc.setDrawColor(228, 229, 242); doc.setLineWidth(0.04)
           doc.line(M, rowY + RH, W - M, rowY + RH)
-          // Vertical day lines
-          days.forEach((_, i) => {
-            doc.setDrawColor(235, 236, 245); doc.setLineWidth(0.04)
-            doc.line(GL + i * CW, rowY, GL + i * CW, rowY + RH)
-          })
-
-          // Task label
-          doc.setTextColor(60, 65, 90); doc.setFontSize(5); doc.setFont('helvetica', 'normal')
-          const label = task.name.length > 22 ? task.name.substring(0, 21) + '…' : task.name
-          doc.text(label, M + 2, rowY + RH * 0.65)
-
-          // Bar
+          days.forEach((_, i) => { doc.line(GL + i * CW, rowY, GL + i * CW, rowY + RH) })
+          doc.setTextColor(55, 60, 90); doc.setFontSize(5); doc.setFont('helvetica', 'normal')
+          doc.text(task.name.length > 22 ? task.name.substring(0, 21) + '…' : task.name, M + 2, rowY + RH * 0.65)
           const off = differenceInDays(new Date(task.startDate), rangeStart)
           const dur = Math.max(1, differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1)
           const bx = GL + off * CW
           const bw = Math.max(CW, dur * CW)
-          const bh = RH * 0.52
+          const bh = RH * 0.55
           const by = rowY + (RH - bh) / 2
-
-          // Conflict ring
-          if (conflict) {
-            doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4)
-            doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S')
-          }
-
-          doc.setFillColor(bRgb.r, bRgb.g, bRgb.b)
-          doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F')
-
-          // Progress overlay (lighter)
+          if (conflict) { doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4); doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S') }
+          doc.setFillColor(bRgb.r, bRgb.g, bRgb.b); doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F')
           if (task.progress > 0 && task.progress < 100) {
-            doc.setFillColor(
-              Math.min(255, bRgb.r + 50),
-              Math.min(255, bRgb.g + 50),
-              Math.min(255, bRgb.b + 50)
-            )
+            doc.setFillColor(Math.min(255, bRgb.r + 50), Math.min(255, bRgb.g + 50), Math.min(255, bRgb.b + 50))
             doc.roundedRect(bx, by, bw * (task.progress / 100), bh, 0.5, 0.5, 'F')
           }
-
-          // Label on bar
           if (bw > 8) {
             doc.setTextColor(255, 255, 255); doc.setFontSize(3.8); doc.setFont('helvetica', 'bold')
             const mc = Math.floor(bw / 2)
             doc.text(task.name.length > mc ? task.name.substring(0, mc - 1) + '…' : task.name, bx + 1.5, by + bh * 0.72)
           }
-
-          // Today line
-          doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2)
-          doc.line(todayX, rowY, todayX, rowY + RH)
-
+          doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH)
           rowY += RH
         })
         rowY += 1.5
       })
 
-      // ── LEGEND ──
-      if (rowY < H - 10) {
+      if (rowY < H - 12) {
         rowY += 3
-        doc.setFillColor(245, 246, 255); doc.rect(M, rowY - 3, W - M * 2, 10, 'F')
-        doc.setDrawColor(210, 212, 240); doc.setLineWidth(0.1)
-        doc.rect(M, rowY - 3, W - M * 2, 10, 'S')
-        doc.setTextColor(100, 102, 140); doc.setFontSize(4.5); doc.setFont('helvetica', 'bold')
+        doc.setFillColor(242, 243, 252); doc.rect(M, rowY - 3, W - M * 2, 10, 'F')
+        doc.setDrawColor(210, 212, 240); doc.setLineWidth(0.1); doc.rect(M, rowY - 3, W - M * 2, 10, 'S')
+        doc.setTextColor(100, 102, 150); doc.setFontSize(4.5); doc.setFont('helvetica', 'bold')
         doc.text('LEYENDA', M + 2, rowY + 1.5)
         let lx = M + 18
-        const items = colorMode === 'status'
-          ? Object.entries(STATUS_COLORS).map(([k, v]) => ({ label: getStatusLabel(k), color: v }))
+        const items = colorMode === 'status' ? Object.entries(STATUS_COLORS).map(([k, v]) => ({ label: getStatusLabel(k), color: v }))
           : colorMode === 'user' ? users.map((u) => ({ label: u.name, color: u.color || '#6366F1' }))
           : projects.map((p) => ({ label: p.name, color: p.color }))
         items.forEach(({ label, color }) => {
-          if (lx > W - 35) return
-          const rgb = hexToRgb(color)
-          doc.setFillColor(rgb.r, rgb.g, rgb.b)
+          if (lx > W - 40) return
+          const rgb = hexToRgb(color); doc.setFillColor(rgb.r, rgb.g, rgb.b)
           doc.roundedRect(lx, rowY - 0.5, 3.5, 3.5, 0.4, 0.4, 'F')
-          doc.setTextColor(80, 82, 110); doc.setFont('helvetica', 'normal'); doc.setFontSize(4.5)
-          doc.text(label, lx + 5, rowY + 2.5)
-          lx += label.length * 1.9 + 9
+          doc.setTextColor(80, 82, 120); doc.setFont('helvetica', 'normal'); doc.setFontSize(4.5)
+          doc.text(label, lx + 5, rowY + 2.5); lx += label.length * 2 + 9
         })
-        // Weekend
-        doc.setFillColor(235, 236, 245); doc.roundedRect(lx, rowY - 0.5, 3.5, 3.5, 0.4, 0.4, 'F')
-        doc.setTextColor(80, 82, 110); doc.setFontSize(4.5)
-        doc.text('Fin de semana', lx + 5, rowY + 2.5)
+        doc.setFillColor(228, 229, 245); doc.roundedRect(lx, rowY - 0.5, 3.5, 3.5, 0.4, 0.4, 'F')
+        doc.setTextColor(80, 82, 120); doc.setFontSize(4.5); doc.text('Fin de semana', lx + 5, rowY + 2.5)
       }
 
-      // ── TABLE PAGE ──
       doc.addPage('a4', 'landscape')
       doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
       doc.text('SM Arquitectura — Detalle de Tareas', M, 9)
-      doc.setFontSize(7); doc.setFont('helvetica', 'normal')
-      doc.text(format(new Date(), "dd 'de' MMMM yyyy", { locale: es }), W - M - 32, 9)
-
       autoTable(doc, {
         startY: 20,
         head: [['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']],
-        body: filteredTasks.map((t) => [
-          t.name, (t as any).project?.name || '', (t as any).user?.name || '',
-          format(new Date(t.startDate), 'dd/MM/yyyy'), format(new Date(t.endDate), 'dd/MM/yyyy'),
-          getStatusLabel(t.status), `${t.progress}%`,
-        ]),
-        headStyles: { fillColor: [79, 82, 229], textColor: 255, fontSize: 7, fontStyle: 'bold' },
+        body: filteredTasks.map((t) => [t.name, (t as any).project?.name || '', (t as any).user?.name || '',
+          format(new Date(t.startDate), 'dd/MM/yyyy'), format(new Date(t.endDate), 'dd/MM/yyyy'), getStatusLabel(t.status), `${t.progress}%`]),
+        headStyles: { fillColor: [79, 82, 200], textColor: 255, fontSize: 7, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7, textColor: [40, 45, 80] },
-        alternateRowStyles: { fillColor: [245, 246, 255] },
-        columnStyles: {
-          0: { cellWidth: 60 }, 1: { cellWidth: 50 }, 2: { cellWidth: 45 },
-          3: { cellWidth: 25 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 }, 6: { cellWidth: 18 },
-        },
+        alternateRowStyles: { fillColor: [242, 243, 252] },
+        columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 50 }, 2: { cellWidth: 45 }, 3: { cellWidth: 25 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 }, 6: { cellWidth: 18 } },
         margin: { left: M, right: M },
       })
 
