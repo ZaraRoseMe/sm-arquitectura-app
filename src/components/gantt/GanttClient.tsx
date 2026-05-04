@@ -195,14 +195,13 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     }
   }
 
-  function getProjectBar(tasks: Task[]) {
+  function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
     if (!tasks.length) return null
-    const starts = tasks.map(t => new Date(t.startDate).getTime())
-    const ends = tasks.map(t => new Date(t.endDate).getTime())
-    const minStart = new Date(Math.min(...starts))
-    const maxEnd = new Date(Math.max(...ends))
-    const left = Math.max(0, differenceInDays(minStart, rangeStart) * cellWidth)
-    const width = Math.max(cellWidth * 2, (differenceInDays(maxEnd, minStart) + 1) * cellWidth)
+    // Use project dates if available, otherwise fall back to task dates
+    const startDate = project.startDate ? new Date(project.startDate) : new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())))
+    const endDate = project.endDate ? new Date(project.endDate) : new Date(Math.max(...tasks.map(t => new Date(t.endDate).getTime())))
+    const left = Math.max(0, differenceInDays(startDate, rangeStart) * cellWidth)
+    const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
     const progress = Math.round((done / tasks.length) * 100)
     return { left, width, progress }
@@ -443,7 +442,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
             {/* VISTA POR PROYECTO */}
             {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
-              const projBar = getProjectBar(pt)
+              const projBar = getProjectBar(project, pt)
               return (
                 <div key={project.id} className="border-b border-gray-50 dark:border-neutral-800">
                   {/* Project header with summary bar */}
@@ -458,7 +457,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                       <div className="absolute top-0 bottom-0 w-px bg-brand-400 opacity-40 z-10" style={{ left: todayOffset }} />
                       {projBar && (
                         <div className="absolute rounded-lg overflow-hidden"
-                          style={{ left: projBar.left, width: projBar.width, height: 12, top: '50%', transform: 'translateY(-50%)', backgroundColor: project.color, opacity: 0.85 }}>
+                          style={{ left: projBar.left, width: projBar.width, height: 18, top: '50%', transform: 'translateY(-50%)', backgroundColor: project.color, opacity: 0.9, borderRadius: 6 }}>
                           <div className="h-full rounded-lg bg-white opacity-30" style={{ width: `${projBar.progress}%` }} />
                         </div>
                       )}
@@ -492,7 +491,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                           <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
                           <div
                             className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
-                            style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 14, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1 }}
+                            style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
                             onClick={() => setSelectedTask(task)}
                             title={`${task.name} — clic para ver detalle`}>
                             <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
