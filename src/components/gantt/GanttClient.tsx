@@ -160,7 +160,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   }, [filteredTasks, users])
 
   const groupedByProject = useMemo(() => {
-    const g: Record<string, { project: { id: string; name: string; color: string }; tasks: Task[] }> = {}
+    const g: Record<string, { project: { id: string; name: string; color: string; startDate?: any; endDate?: any }; tasks: Task[] }> = {}
     projects.forEach((p) => { g[p.id] = { project: p, tasks: [] } })
     filteredTasks.forEach((t) => { if (t.projectId && g[t.projectId]) g[t.projectId].tasks.push(t) })
     return Object.values(g).filter((x) => x.tasks.length > 0)
