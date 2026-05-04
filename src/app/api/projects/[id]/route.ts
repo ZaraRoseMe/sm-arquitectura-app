@@ -3,12 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 
-// Parse date string YYYY-MM-DD as local time (avoid UTC offset issue)
-function parseLocalDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return new Date(year, month - 1, day, 12, 0, 0)
-}
-
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -35,8 +29,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data: {
       ...(name && { name }),
       ...(description !== undefined && { description }),
-      ...(startDate && { startDate: parseLocalDate(startDate) }),
-      ...(endDate && { endDate: parseLocalDate(endDate) }),
+      ...(startDate && { startDate: new Date(`${startDate}T12:00:00.000Z`) }),
+      ...(endDate && { endDate: new Date(`${endDate}T12:00:00.000Z`) }),
       ...(color && { color }),
     },
     include: { tasks: { include: { user: true, pauseLogs: true } } },
