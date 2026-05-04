@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+// Parse YYYY-MM-DD as local noon to avoid UTC offset
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.substring(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d, 12, 0, 0)
+}
+
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -30,14 +36,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
   if (!currentTask) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Pause log
   if (status === 'PAUSADO' && currentTask.status !== 'PAUSADO') {
     await prisma.pauseLog.create({
       data: { taskId: id, userId: currentTask.userId, pausedAt: new Date(), reason: body.pauseReason || 'Sin motivo' },
     })
   }
 
-  // Resume log
   if (status && status !== 'PAUSADO' && currentTask.status === 'PAUSADO') {
     const lastPause = await prisma.pauseLog.findFirst({
       where: { taskId: id, resumedAt: null },
@@ -55,8 +59,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(progress !== undefined && { progress }),
       ...(name && { name }),
       ...(description !== undefined && { description }),
-      ...(startDate && { startDate: new Date(startDate) }),
-      ...(endDate && { endDate: new Date(endDate) }),
+      ...(startDate && { startDate: parseLocalDate(startDate) }),
+      ...(endDate && { endDate: parseLocalDate(endDate) }),
       ...(userId && { userId }),
       ...(projectId && { projectId }),
       ...(priority && { priority }),
@@ -64,15 +68,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     include: { user: true, project: true, pauseLogs: true },
   })
 
-  // Notify the assigned user about changes (only if admin is editing)
   if (session.user.role === 'ADMIN' && task.userId !== session.user.id) {
     const changes: string[] = []
     if (name && name !== currentTask.name) changes.push(`nombre: "${name}"`)
     if (status && status !== currentTask.status) changes.push(`estado: ${formatStatus(status)}`)
-    if (startDate && new Date(startDate).toDateString() !== currentTask.startDate.toDateString())
-      changes.push(`inicio: ${format(new Date(startDate), "dd 'de' MMMM", { locale: es })}`)
-    if (endDate && new Date(endDate).toDateString() !== currentTask.endDate.toDateString())
-      changes.push(`fin: ${format(new Date(endDate), "dd 'de' MMMM", { locale: es })}`)
+    if (startDate && parseLocalDate(startDate).toDateString() !== currentTask.startDate.toDateString())
+      changes.push(`inicio: ${format(parseLocalDate(startDate), "dd 'de' MMMM", { locale: es })}`)
+    if (endDate && parseLocalDate(endDate).toDateString() !== currentTask.endDate.toDateString())
+      changes.push(`fin: ${format(parseLocalDate(endDate), "dd 'de' MMMM", { locale: es })}`)
     if (description !== undefined && description !== currentTask.description) changes.push('descripción actualizada')
 
     if (changes.length > 0) {
