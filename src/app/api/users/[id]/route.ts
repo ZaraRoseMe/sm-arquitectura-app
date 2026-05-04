@@ -33,6 +33,16 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
   const { id } = await params
+
+  // Verificar si tiene tareas asignadas
+  const taskCount = await prisma.task.count({ where: { userId: id } })
+  if (taskCount > 0) {
+    return NextResponse.json(
+      { error: `No se puede eliminar — tiene ${taskCount} tarea${taskCount > 1 ? 's' : ''} asignada${taskCount > 1 ? 's' : ''}. Reasígnalas primero.` },
+      { status: 409 }
+    )
+  }
+
   await prisma.user.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }
