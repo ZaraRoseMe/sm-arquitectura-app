@@ -196,24 +196,14 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   }
 
   function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
-    if (!tasks.length) return null
-    // Use task dates — always reliable
-    const starts = tasks.map(t => {
-      const s = typeof t.startDate === 'string' ? t.startDate.substring(0, 10) : new Date(t.startDate).toISOString().substring(0, 10)
-      const [y, m, d] = s.split('-').map(Number)
-      return new Date(y, m - 1, d).getTime()
-    })
-    const ends = tasks.map(t => {
-      const s = typeof t.endDate === 'string' ? t.endDate.substring(0, 10) : new Date(t.endDate).toISOString().substring(0, 10)
-      const [y, m, d] = s.split('-').map(Number)
-      return new Date(y, m - 1, d).getTime()
-    })
-    const startDate = new Date(Math.min(...starts))
-    const endDate = new Date(Math.max(...ends))
+    // Use project dates directly — independent of tasks
+    if (!project.startDate || !project.endDate) return null
+    const startDate = parseDate(project.startDate)
+    const endDate = parseDate(project.endDate)
     const left = Math.max(0, differenceInDays(startDate, rangeStart) * cellWidth)
     const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
-    const progress = Math.round((done / tasks.length) * 100)
+    const progress = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0
     return { left, width, progress }
   }
 
