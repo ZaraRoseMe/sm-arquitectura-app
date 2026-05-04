@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X } from 'lucide-react'
 import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn, getStatusLabel, getInitials, detectConflicts } from '@/lib/utils'
+import { cn, getStatusLabel, getInitials, detectConflicts, parseDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Task } from '@/types'
 
@@ -172,8 +172,8 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const ut = tasks.filter((t) => t.userId === user.id && t.status !== 'TERMINADO')
       ut.forEach((task, i) => {
         const conflicts = detectConflicts(
-          { startDate: new Date(task.startDate), endDate: new Date(task.endDate), userId: user.id },
-          ut.filter((_, j) => j !== i).map((t) => ({ startDate: new Date(t.startDate), endDate: new Date(t.endDate), userId: t.userId, id: t.id }))
+          { startDate: parseDate(task.startDate), endDate: parseDate(task.endDate), userId: user.id },
+          ut.filter((_, j) => j !== i).map((t) => ({ startDate: parseDate(t.startDate), endDate: parseDate(t.endDate), userId: t.userId, id: t.id }))
         )
         if (conflicts.length) { ids.add(task.id); conflicts.forEach((c) => ids.add(c.id || '')) }
       })
@@ -190,22 +190,26 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
   function getPos(task: Task) {
     return {
-      left: Math.max(0, differenceInDays(new Date(task.startDate), rangeStart) * cellWidth),
-      width: Math.max(cellWidth, (differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1) * cellWidth),
+      left: Math.max(0, differenceInDays(parseDate(task.startDate), rangeStart) * cellWidth),
+      width: Math.max(cellWidth, (differenceInDays(parseDate(task.endDate), parseDate(task.startDate)) + 1) * cellWidth),
     }
   }
 
   function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
     if (!tasks.length) return null
-    // Parse date safely — take only YYYY-MM-DD part to avoid UTC shift
-    function safeDate(d: any): Date | null {
-      if (!d) return null
-      const str = typeof d === 'string' ? d : new Date(d).toISOString()
-      const [y, m, day] = str.substring(0, 10).split('-').map(Number)
-      return new Date(y, m - 1, day)
-    }
-    const startDate = safeDate(project.startDate) || new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())))
-    const endDate = safeDate(project.endDate) || new Date(Math.max(...tasks.map(t => new Date(t.endDate).getTime())))
+    // Use task dates — always reliable
+    const starts = tasks.map(t => {
+      const s = typeof t.startDate === 'string' ? t.startDate.substring(0, 10) : new Date(t.startDate).toISOString().substring(0, 10)
+      const [y, m, d] = s.split('-').map(Number)
+      return new Date(y, m - 1, d).getTime()
+    })
+    const ends = tasks.map(t => {
+      const s = typeof t.endDate === 'string' ? t.endDate.substring(0, 10) : new Date(t.endDate).toISOString().substring(0, 10)
+      const [y, m, d] = s.split('-').map(Number)
+      return new Date(y, m - 1, d).getTime()
+    })
+    const startDate = new Date(Math.min(...starts))
+    const endDate = new Date(Math.max(...ends))
     const left = Math.max(0, differenceInDays(startDate, rangeStart) * cellWidth)
     const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
