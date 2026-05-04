@@ -11,7 +11,7 @@ import type { Task } from '@/types'
 interface GanttClientProps {
   tasks: Task[]
   users: { id: string; name: string; color?: string }[]
-  projects: { id: string; name: string; color: string }[]
+  projects: { id: string; name: string; color: string; startDate?: any; endDate?: any }[]
   isAdmin: boolean
 }
 
@@ -123,7 +123,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const [userFilter, setUserFilter] = useState('ALL')
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [colorMode, setColorMode] = useState<ColorMode>('status')
-  const [groupMode, setGroupMode] = useState<GroupMode>('user')
+  const [groupMode, setGroupMode] = useState<GroupMode>('project')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   const today = new Date()
