@@ -10,22 +10,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
   const { id } = await params
-  const body = await req.json()
-  const { name, email, role, password, color } = body
+  const { name, role, password, color } = await req.json()
 
   const data: any = {
     ...(name && { name }),
-    ...(email && { email }),
     ...(role && { role }),
     ...(color && { color }),
   }
-  if (password) {
-    data.password = await bcrypt.hash(password, 12)
-  }
+  if (password) data.password = await bcrypt.hash(password, 12)
 
-  const user = await prisma.user.update({ where: { id }, data })
-  const { password: _, ...userWithoutPassword } = user
-  return NextResponse.json(userWithoutPassword)
+  const user = await prisma.user.update({
+    where: { id },
+    data,
+    select: { id: true, username: true, name: true, email: true, role: true, color: true },
+  })
+  return NextResponse.json(user)
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {

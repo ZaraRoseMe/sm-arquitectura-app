@@ -3,12 +3,12 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { Building2, Eye, EyeOff, Lock, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -16,9 +16,9 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const result = await signIn('credentials', { email, password, redirect: false })
+    const result = await signIn('credentials', { username, password, redirect: false })
     if (result?.error) {
-      toast.error('Credenciales incorrectas')
+      toast.error('Usuario o contraseña incorrectos')
     } else {
       router.push('/dashboard')
       router.refresh()
@@ -81,27 +81,45 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Iniciar sesión</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Ingresa tus credenciales para continuar</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Ingresa tu usuario y contraseña para continuar</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label">Correo electrónico</label>
+              <label className="label">Usuario</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input pl-9" placeholder="tu@smarquitectura.com" required />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="input pl-9"
+                  placeholder="tu_usuario"
+                  required
+                  autoComplete="username"
+                />
               </div>
             </div>
             <div>
               <label className="label">Contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="input pl-9 pr-10" placeholder="••••••••" required />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input pl-9 pr-10"
+                  placeholder="••••••••"
+                  required
+                  autoComplete="current-password"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-            <button type="submit" disabled={loading} className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 mt-2">
+            <button type="submit" disabled={loading}
+              className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 mt-2">
               {loading ? (<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Ingresando...</>) : 'Ingresar'}
             </button>
           </form>
