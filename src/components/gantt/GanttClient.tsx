@@ -2,7 +2,7 @@
 // src/components/gantt/GanttClient.tsx
 import { useState, useMemo } from 'react'
 import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder } from 'lucide-react'
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, differenceInDays, addMonths, subMonths } from 'date-fns'
+import { subDays, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, differenceInDays, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getStatusLabel, getInitials, detectConflicts } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -63,7 +63,8 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const [colorMode, setColorMode] = useState<ColorMode>('status')
 
   const cellWidth = DAY_WIDTH_OPTIONS[dayWidth]
-  const rangeStart = startOfMonth(subMonths(currentDate, 1))
+  // Mostrar desde 3 días antes de hoy hasta 2 meses adelante
+  const rangeStart = subDays(new Date(), 3)
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
 
@@ -131,26 +132,18 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
       const W = 297, H = 210, M = 12
 
-      // HEADER
       doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-      doc.text('SM Arquitectura — Diagrama de Gantt', M, 9)
+      doc.text('KRONOZ — Diagrama de Gantt', M, 9)
       doc.setFontSize(7); doc.setFont('helvetica', 'normal')
       doc.text(format(new Date(), "dd 'de' MMMM yyyy", { locale: es }), W - M - 32, 9)
 
-      const GT = 18
-      const LW = 52
-      const MH = 5   // month row height
-      const WH = 4   // weekday letter row height
-      const NH = 4   // day number row height
-      const RH = 8   // task row height
-      const GL = M + LW
-      const GW = W - M - GL
+      const GT = 18, LW = 52, MH = 5, WH = 4, NH = 4, RH = 8
+      const GL = M + LW, GW = W - M - GL
       const CW = GW / days.length
       const todayX = GL + differenceInDays(new Date(), rangeStart) * CW
       const totalHeaderH = MH + WH + NH
 
-      // Month row
       let mx = GL
       months.forEach((mo) => {
         const mw = mo.days.length * CW
@@ -161,7 +154,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         mx += mw
       })
 
-      // Weekday letter row
       days.forEach((day, i) => {
         const x = GL + i * CW
         const we = isWeekend(day), td = isSameDay(day, new Date())
@@ -176,7 +168,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         doc.text(letter, x + (CW - tw) / 2, GT + MH + WH - 0.8)
       })
 
-      // Day number row
       days.forEach((day, i) => {
         const x = GL + i * CW
         const we = isWeekend(day), td = isSameDay(day, new Date())
@@ -193,7 +184,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         doc.text(num, x + (CW - tw) / 2, GT + MH + WH + NH - 0.8)
       })
 
-      // Label col header
       doc.setFillColor(79, 82, 200); doc.rect(M, GT, LW, totalHeaderH, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
       doc.text('COLABORADOR / TAREA', M + 2, GT + totalHeaderH / 2 + 1.5)
@@ -283,7 +273,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       doc.addPage('a4', 'landscape')
       doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-      doc.text('SM Arquitectura — Detalle de Tareas', M, 9)
+      doc.text('KRONOZ — Detalle de Tareas', M, 9)
       autoTable(doc, {
         startY: 20,
         head: [['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']],
@@ -296,7 +286,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         margin: { left: M, right: M },
       })
 
-      doc.save('sm-arquitectura-gantt.pdf')
+      doc.save('kronoz-gantt.pdf')
       toast.dismiss(tid); toast.success('PDF descargado')
     } catch (err) {
       console.error(err); toast.dismiss(tid); toast.error('Error al generar PDF')
