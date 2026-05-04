@@ -133,7 +133,15 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const rangeStartRaw = isCurrentMonth ? subDays(today, 3) : startOfMonth(subMonths(currentDate, 1))
   const rangeStart = new Date(rangeStartRaw.getFullYear(), rangeStartRaw.getMonth(), rangeStartRaw.getDate(), 0, 0, 0, 0)
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
-  const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+  // Extend rangeStart if tasks start earlier
+  const allTaskStarts = initialTasks.map(t => {
+    const s = String(t.startDate).substring(0, 10)
+    const [y, m, d] = s.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  })
+  const earliestTask = allTaskStarts.length ? new Date(Math.min(...allTaskStarts.map(d => d.getTime()))) : rangeStart
+  const effectiveRangeStart = earliestTask < rangeStart ? earliestTask : rangeStart
+  const days = eachDayOfInterval({ start: effectiveRangeStart, end: rangeEnd })
 
   const months = useMemo(() => {
     const result: { label: string; days: Date[] }[] = []
@@ -191,7 +199,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
   function getPos(task: Task) {
     return {
-      left: Math.max(0, differenceInDays(parseDate(task.startDate), rangeStart) * cellWidth),
+      left: Math.max(0, differenceInDays(parseDate(task.startDate), effectiveRangeStart) * cellWidth),
       width: Math.max(cellWidth, (differenceInDays(parseDate(task.endDate), parseDate(task.startDate)) + 1) * cellWidth),
     }
   }
@@ -206,14 +214,14 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     const [ey, em, eday] = ed.split('-').map(Number)
     const startDate = new Date(sy, sm - 1, sday, 0, 0, 0, 0)
     const endDate = new Date(ey, em - 1, eday, 0, 0, 0, 0)
-    const left = Math.max(0, differenceInDays(startDate, rangeStart) * cellWidth)
+    const left = Math.max(0, differenceInDays(startDate, effectiveRangeStart) * cellWidth)
     const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
     const progress = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0
     return { left, width, progress }
   }
 
-  const todayOffset = differenceInDays(today, rangeStart) * cellWidth
+  const todayOffset = differenceInDays(today, effectiveRangeStart) * cellWidth
 
   // Label column — wider to show full text
   const LABEL_W = 200
