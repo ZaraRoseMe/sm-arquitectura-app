@@ -130,7 +130,8 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const isCurrentMonth = isSameMonth(currentDate, today)
   const cellWidth = DAY_WIDTH_OPTIONS[dayWidth]
 
-  const rangeStart = isCurrentMonth ? subDays(today, 3) : startOfMonth(subMonths(currentDate, 1))
+  const rangeStartRaw = isCurrentMonth ? subDays(today, 3) : startOfMonth(subMonths(currentDate, 1))
+  const rangeStart = new Date(rangeStartRaw.getFullYear(), rangeStartRaw.getMonth(), rangeStartRaw.getDate(), 0, 0, 0, 0)
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
 
@@ -198,8 +199,13 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
     // Use project dates directly — independent of tasks
     if (!project.startDate || !project.endDate) return null
-    const startDate = parseDate(project.startDate)
-    const endDate = parseDate(project.endDate)
+    // Force string parsing: take only YYYY-MM-DD and build local date
+    const sd = String(project.startDate).substring(0, 10)
+    const ed = String(project.endDate).substring(0, 10)
+    const [sy, sm, sday] = sd.split('-').map(Number)
+    const [ey, em, eday] = ed.split('-').map(Number)
+    const startDate = new Date(sy, sm - 1, sday, 0, 0, 0, 0)
+    const endDate = new Date(ey, em - 1, eday, 0, 0, 0, 0)
     const left = Math.max(0, differenceInDays(startDate, rangeStart) * cellWidth)
     const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
