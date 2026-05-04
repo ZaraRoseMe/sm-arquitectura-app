@@ -9,9 +9,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const { id } = await params
   const project = await prisma.project.findUnique({
     where: { id },
-    include: {
-      tasks: { include: { user: true, pauseLogs: true } },
-    },
+    include: { tasks: { include: { user: true, pauseLogs: true } } },
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(project)
@@ -25,6 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
   const { name, description, startDate, endDate, color } = body
+
   const project = await prisma.project.update({
     where: { id },
     data: {
@@ -34,6 +33,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(endDate && { endDate: new Date(endDate) }),
       ...(color && { color }),
     },
+    // Include tasks so the frontend card updates correctly
+    include: { tasks: { include: { user: true, pauseLogs: true } } },
   })
   return NextResponse.json(project)
 }
