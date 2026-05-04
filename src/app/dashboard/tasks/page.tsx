@@ -18,7 +18,7 @@ export default async function TasksPage() {
     }),
     prisma.project.findMany({ orderBy: { name: 'asc' } }),
     isAdmin
-      ? prisma.user.findMany({ select: { id: true, name: true, email: true, role: true } })
+      ? prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, color: true } })
       : Promise.resolve([]),
   ])
 
@@ -29,6 +29,7 @@ export default async function TasksPage() {
       users={users as any}
       isAdmin={isAdmin}
       currentUserId={session.user.id}
+      currentUserName={session.user.name || ''}
     />
   )
 }

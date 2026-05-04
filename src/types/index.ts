@@ -7,6 +7,7 @@ export interface User {
   name: string
   email: string
   role: Role
+  color?: string
   avatar?: string | null
   createdAt: Date
   updatedAt: Date
@@ -23,6 +24,12 @@ export interface Project {
   updatedAt: Date
   tasks?: Task[]
   _count?: { tasks: number }
+}
+
+export interface DescriptionEntry {
+  text: string
+  createdAt: string
+  authorName: string
 }
 
 export interface Task {
@@ -96,10 +103,10 @@ export interface DashboardStats {
   }[]
 }
 
-// Extend NextAuth types
 declare module 'next-auth' {
   interface User {
     role: Role
+    color?: string
   }
   interface Session {
     user: {
@@ -107,6 +114,7 @@ declare module 'next-auth' {
       name: string
       email: string
       role: Role
+      color?: string
       image?: string
     }
   }
@@ -115,5 +123,6 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     role: Role
+    color?: string
   }
 }

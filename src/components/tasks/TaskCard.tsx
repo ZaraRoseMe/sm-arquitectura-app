@@ -3,7 +3,20 @@
 import { useState } from 'react'
 import { Edit2, Trash2, Play, Pause, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn, getStatusColor, getStatusLabel, formatDate, isOverdue, getInitials } from '@/lib/utils'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import type { Task } from '@/types'
+
+interface DescriptionEntry { text: string; createdAt: string; authorName: string }
+
+function parseEntries(raw?: string | null): DescriptionEntry[] {
+  if (!raw) return []
+  try {
+    const p = JSON.parse(raw)
+    if (Array.isArray(p)) return p
+    return [{ text: raw, createdAt: new Date().toISOString(), authorName: '' }]
+  } catch { return [{ text: raw, createdAt: new Date().toISOString(), authorName: '' }] }
+}
 
 interface TaskCardProps {
   task: Task
@@ -24,7 +37,8 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
   const canEdit = isAdmin || task.userId === currentUserId
   const avatarColor = (task.user as any)?.color || '#6366F1'
   const daysLeft = Math.ceil((new Date(task.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-  const hasDesc = !!(task as any).description?.trim()
+  const entries = parseEntries((task as any).description)
+  const hasDesc = entries.length > 0
 
   return (
     <div className={cn('card p-5 group hover:shadow-md transition-all', overdue && 'ring-1 ring-red-200 dark:ring-red-900')}>
@@ -37,52 +51,56 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">{(task as any).project?.name}</p>
         </div>
-        {canEdit && (
+        {canEdit && isAdmin && (
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-            {isAdmin && (
-              <>
-                <button onClick={() => onEdit(task)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors">
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => onDelete(task.id)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </>
-            )}
+            <button onClick={() => onEdit(task)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors">
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => onDelete(task.id)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
       </div>
 
-      {/* Status badge */}
+      {/* Status */}
       <span className={cn('badge mb-3', colors.bg, colors.text)}>
         <span className={cn('w-1.5 h-1.5 rounded-full', colors.dot)} />
         {getStatusLabel(task.status)}
       </span>
 
-      {/* Description preview */}
+      {/* Description entries */}
       {hasDesc && (
         <div className="mb-3">
-          <button
-            onClick={() => setShowDesc(!showDesc)}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors w-full text-left"
-          >
+          <button onClick={() => setShowDesc(!showDesc)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             {showDesc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            <span>{showDesc ? 'Ocultar descripción' : 'Ver descripción'}</span>
+            <span>{showDesc ? 'Ocultar' : `Ver descripción (${entries.length})`}</span>
           </button>
           {showDesc && (
-            <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-neutral-800 rounded-lg px-3 py-2 leading-relaxed">
-              {(task as any).description}
-            </p>
+            <div className="mt-2 space-y-2 max-h-36 overflow-y-auto">
+              {entries.map((entry, i) => (
+                <div key={i} className="bg-gray-50 dark:bg-neutral-800 rounded-lg px-3 py-2 border border-gray-100 dark:border-neutral-700">
+                  <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{entry.text}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Clock className="w-2.5 h-2.5 text-gray-400" />
+                    <p className="text-[10px] text-gray-400">
+                      {entry.authorName && <span className="font-medium">{entry.authorName} · </span>}
+                      {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm", { locale: es })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
 
-      {/* Progress bar */}
+      {/* Progress */}
       {task.status === 'EN_PROGRESO' && (
         <div className="mb-3">
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-            <span>Progreso</span>
-            <span>{task.progress}%</span>
+            <span>Progreso</span><span>{task.progress}%</span>
           </div>
           <div className="h-1.5 bg-gray-100 dark:bg-neutral-700 rounded-full overflow-hidden">
             <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${task.progress}%` }} />
@@ -91,18 +109,22 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
       )}
 
       {/* Dates */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         <div>
           <p className="text-xs text-gray-400 mb-0.5">Inicio</p>
           <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{formatDate(task.startDate, 'dd MMM')}</p>
         </div>
         <div>
           <p className="text-xs text-gray-400 mb-0.5">Fin</p>
-          <p className={cn('text-xs font-medium', overdue ? 'text-red-500' : 'text-gray-700 dark:text-gray-300')}>
-            {formatDate(task.endDate, 'dd MMM')}
-          </p>
+          <p className={cn('text-xs font-medium', overdue ? 'text-red-500' : 'text-gray-700 dark:text-gray-300')}>{formatDate(task.endDate, 'dd MMM')}</p>
         </div>
       </div>
+
+      {/* Updated at */}
+      <p className="text-[10px] text-gray-400 mb-3 flex items-center gap-1">
+        <Clock className="w-2.5 h-2.5" />
+        Actualizado {format(new Date(task.updatedAt), "dd MMM yyyy HH:mm", { locale: es })}
+      </p>
 
       {/* Days indicator */}
       {task.status !== 'TERMINADO' && (
@@ -125,7 +147,6 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
             <span className="text-xs text-gray-500 dark:text-gray-400">{task.user.name.split(' ')[0]}</span>
           </div>
         )}
-
         {canEdit && task.status !== 'TERMINADO' && (
           <div className="flex gap-1 ml-auto">
             {task.status === 'EN_PROGRESO' && (
@@ -147,7 +168,6 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
         )}
       </div>
 
-      {/* Pause dialog */}
       {showPauseDialog && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-neutral-800">
           <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo de pausa (opcional)</p>

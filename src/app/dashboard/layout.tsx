@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
 import Header from '@/components/layout/Header'
 import NotificationPoller from '@/components/layout/NotificationPoller'
+import ChatPanel from '@/components/chat/ChatPanel'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -38,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
       <NotificationPoller />
+      <ChatPanel currentUserId={currentUserId} users={users} />
     </div>
   )
 }
