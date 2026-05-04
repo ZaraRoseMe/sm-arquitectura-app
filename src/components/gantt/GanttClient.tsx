@@ -1,7 +1,7 @@
 'use client'
 // src/components/gantt/GanttClient.tsx
 import { useState, useMemo } from 'react'
-import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck } from 'lucide-react'
+import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X } from 'lucide-react'
 import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getStatusLabel, getInitials, detectConflicts } from '@/lib/utils'
@@ -55,6 +55,67 @@ function DayCell({ day, cellWidth }: { day: Date; cellWidth: number }) {
   )
 }
 
+// Task detail popup
+function TaskDetailPopup({ task, users, projects, onClose }: { task: Task; users: any[]; projects: any[]; onClose: () => void }) {
+  const user = users.find(u => u.id === task.userId)
+  const project = projects.find(p => p.id === task.projectId)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/20" />
+      <div className="relative bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl p-5 w-80 animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">{task.name}</h3>
+            {project && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: project.color }} />
+                <span className="text-xs text-gray-500">{project.name}</span>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Estado</span>
+            <span className="font-medium text-gray-800 dark:text-white">{getStatusLabel(task.status)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Progreso</span>
+            <span className="font-medium text-gray-800 dark:text-white">{task.progress}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Inicio</span>
+            <span className="font-medium text-gray-800 dark:text-white">{format(new Date(task.startDate), 'dd MMM yyyy', { locale: es })}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Fin</span>
+            <span className="font-medium text-gray-800 dark:text-white">{format(new Date(task.endDate), 'dd MMM yyyy', { locale: es })}</span>
+          </div>
+          {user && (
+            <div className="flex justify-between items-center">
+              <span className="text-gray-500">Responsable</span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-semibold" style={{ backgroundColor: user.color || '#6366F1' }}>{getInitials(user.name)}</div>
+                <span className="font-medium text-gray-800 dark:text-white">{user.name}</span>
+              </div>
+            </div>
+          )}
+          {task.progress > 0 && (
+            <div className="pt-1">
+              <div className="h-1.5 bg-gray-100 dark:bg-neutral-700 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${task.progress}%` }} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function GanttClient({ tasks: initialTasks, users, projects, isAdmin }: GanttClientProps) {
   const [tasks] = useState(initialTasks)
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -63,6 +124,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [colorMode, setColorMode] = useState<ColorMode>('status')
   const [groupMode, setGroupMode] = useState<GroupMode>('user')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   const today = new Date()
   const isCurrentMonth = isSameMonth(currentDate, today)
@@ -90,7 +152,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     return true
   }), [tasks, userFilter, projectFilter])
 
-  // Group by USER
   const groupedByUser = useMemo(() => {
     const g: Record<string, { user: { id: string; name: string; color?: string }; tasks: Task[] }> = {}
     users.forEach((u) => { g[u.id] = { user: u, tasks: [] } })
@@ -98,7 +159,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     return Object.values(g).filter((x) => x.tasks.length > 0)
   }, [filteredTasks, users])
 
-  // Group by PROJECT
   const groupedByProject = useMemo(() => {
     const g: Record<string, { project: { id: string; name: string; color: string }; tasks: Task[] }> = {}
     projects.forEach((p) => { g[p.id] = { project: p, tasks: [] } })
@@ -135,7 +195,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     }
   }
 
-  // Project summary bar: from earliest task start to latest task end
   function getProjectBar(tasks: Task[]) {
     if (!tasks.length) return null
     const starts = tasks.map(t => new Date(t.startDate).getTime())
@@ -151,10 +210,12 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
   const todayOffset = differenceInDays(today, rangeStart) * cellWidth
 
-  // Shared timeline header
+  // Label column — wider to show full text
+  const LABEL_W = 200
+
   const TimelineHeader = () => (
     <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
-      <div className="w-48 flex-shrink-0 border-r border-gray-100 dark:border-neutral-800" />
+      <div className="flex-shrink-0 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }} />
       <div className="flex-1">
         <div className="flex border-b border-gray-100 dark:border-neutral-800">
           {months.map((m) => (
@@ -168,61 +229,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     </div>
   )
 
-  // Shared task bar row
-  const TaskRow = ({ task, thin = false }: { task: Task; thin?: boolean }) => {
-    const { left, width } = getPos(task)
-    const conflict = conflictIds.has(task.id)
-    const project = projects.find((p) => p.id === task.projectId)
-    const user = users.find((u) => u.id === task.userId)
-    const barColor = getTaskColor(task, conflict)
-    const barH = thin ? 14 : 22
-
-    return (
-      <div className="flex items-center hover:bg-gray-50/50 dark:hover:bg-neutral-800/10 transition-colors">
-        <div className="w-48 flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800">
-          <div className="flex items-center gap-1.5">
-            {conflict && <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-            <p className={cn('truncate', thin ? 'text-[10px] text-gray-500 dark:text-gray-400 pl-2' : 'text-xs text-gray-700 dark:text-gray-300')} title={task.name}>{task.name}</p>
-          </div>
-          {!thin && groupMode === 'project' && user && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <div className="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
-                {getInitials(user.name).charAt(0)}
-              </div>
-              <p className="text-[10px] text-gray-400 truncate">{user.name.split(' ')[0]}</p>
-            </div>
-          )}
-          {!thin && groupMode === 'user' && project && (
-            <div className="flex items-center gap-1 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: project.color }} />
-              <p className="text-xs text-gray-400 truncate">{project.name}</p>
-            </div>
-          )}
-        </div>
-        <div className="flex-1 relative" style={{ height: thin ? 28 : 36, minWidth: days.length * cellWidth }}>
-          {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
-          <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
-          <div
-            className={cn('absolute rounded-md flex items-center px-1.5 overflow-hidden', conflict && 'ring-1 ring-amber-400')}
-            style={{
-              left: Math.max(0, left),
-              width: Math.max(cellWidth * 1.5, width),
-              height: barH,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              backgroundColor: barColor,
-              opacity: task.status === 'TERMINADO' ? 0.6 : 1,
-            }}
-            title={`${task.name} — ${task.progress}%`}
-          >
-            <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
-            {cellWidth >= 28 && !thin && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   async function handleExportPDF() {
     const tid = toast.loading('Generando PDF...')
     try {
@@ -230,60 +236,45 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const { default: autoTable } = await import('jspdf-autotable')
       const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
       const W = 297, H = 210, M = 12
-
       doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
       doc.text('KRONOZ — Diagrama de Gantt', M, 9)
       doc.setFontSize(7); doc.setFont('helvetica', 'normal')
       doc.text(format(new Date(), "dd 'de' MMMM yyyy", { locale: es }), W - M - 32, 9)
-
-      const GT = 18, LW = 52, MH = 5, WH = 4, NH = 4, RH = 8
+      const GT = 18, LW = 55, MH = 5, WH = 4, NH = 4, RH = 8
       const GL = M + LW, GW = W - M - GL, CW = GW / days.length
       const todayX = GL + differenceInDays(today, rangeStart) * CW
       const totalHeaderH = MH + WH + NH
-
       let mx = GL
       months.forEach((mo) => {
         const mw = mo.days.length * CW
         doc.setFillColor(230, 231, 250); doc.rect(mx, GT, mw - 0.1, MH, 'F')
         doc.setDrawColor(200, 202, 235); doc.setLineWidth(0.1); doc.line(mx, GT, mx, GT + MH)
         doc.setTextColor(79, 82, 200); doc.setFontSize(4.5); doc.setFont('helvetica', 'bold')
-        doc.text(mo.label.toUpperCase().substring(0, 18), mx + 1.5, GT + 3.5)
-        mx += mw
+        doc.text(mo.label.toUpperCase().substring(0, 18), mx + 1.5, GT + 3.5); mx += mw
       })
       days.forEach((day, i) => {
         const x = GL + i * CW, we = isWeekend(day), td = isSameDay(day, today)
-        if (td) doc.setFillColor(79, 82, 220)
-        else if (we) doc.setFillColor(218, 219, 240)
-        else doc.setFillColor(240, 241, 252)
+        if (td) doc.setFillColor(79, 82, 220); else if (we) doc.setFillColor(218, 219, 240); else doc.setFillColor(240, 241, 252)
         doc.rect(x, GT + MH, CW, WH, 'F')
         const letter = format(day, 'EEEEE', { locale: es }).toUpperCase()
         doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
         doc.setTextColor(td ? 255 : we ? 130 : 100, td ? 255 : we ? 130 : 110, td ? 255 : we ? 150 : 160)
-        const tw = doc.getTextWidth(letter)
-        doc.text(letter, x + (CW - tw) / 2, GT + MH + WH - 0.8)
+        const tw = doc.getTextWidth(letter); doc.text(letter, x + (CW - tw) / 2, GT + MH + WH - 0.8)
       })
       days.forEach((day, i) => {
         const x = GL + i * CW, we = isWeekend(day), td = isSameDay(day, today)
-        if (td) doc.setFillColor(99, 102, 241)
-        else if (we) doc.setFillColor(228, 229, 245)
-        else doc.setFillColor(248, 249, 255)
+        if (td) doc.setFillColor(99, 102, 241); else if (we) doc.setFillColor(228, 229, 245); else doc.setFillColor(248, 249, 255)
         doc.rect(x, GT + MH + WH, CW, NH, 'F')
-        doc.setDrawColor(220, 221, 240); doc.setLineWidth(0.05)
-        doc.line(x, GT + MH + WH, x, GT + MH + WH + NH)
-        const num = format(day, 'd')
-        doc.setFontSize(3.2); doc.setFont('helvetica', td ? 'bold' : 'normal')
+        doc.setDrawColor(220, 221, 240); doc.setLineWidth(0.05); doc.line(x, GT + MH + WH, x, GT + MH + WH + NH)
+        const num = format(day, 'd'); doc.setFontSize(3.2); doc.setFont('helvetica', td ? 'bold' : 'normal')
         doc.setTextColor(td ? 255 : we ? 140 : 80, td ? 255 : we ? 140 : 85, td ? 255 : we ? 160 : 120)
-        const tw = doc.getTextWidth(num)
-        doc.text(num, x + (CW - tw) / 2, GT + MH + WH + NH - 0.8)
+        const tw = doc.getTextWidth(num); doc.text(num, x + (CW - tw) / 2, GT + MH + WH + NH - 0.8)
       })
-
       doc.setFillColor(79, 82, 200); doc.rect(M, GT, LW, totalHeaderH, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
       doc.text('COLABORADOR / TAREA', M + 2, GT + totalHeaderH / 2 + 1.5)
-
       let rowY = GT + totalHeaderH
-
       groupedByUser.forEach(({ user, tasks: ut }) => {
         if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
         const uRgb = hexToRgb(user.color || '#6366F1')
@@ -297,7 +288,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         doc.setFontSize(5.5); doc.text(user.name, M + 7.5, rowY + RH * 0.6)
         doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH * 0.85)
         rowY += RH * 0.85
-
         ut.forEach((task) => {
           if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
           const conflict = conflictIds.has(task.id), bc = getTaskColor(task, conflict), bRgb = hexToRgb(bc)
@@ -307,7 +297,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
           doc.setDrawColor(228, 229, 242); doc.setLineWidth(0.04); doc.line(M, rowY + RH, W - M, rowY + RH)
           days.forEach((_, i) => { doc.line(GL + i * CW, rowY, GL + i * CW, rowY + RH) })
           doc.setTextColor(55, 60, 90); doc.setFontSize(5); doc.setFont('helvetica', 'normal')
-          doc.text(task.name.length > 22 ? task.name.substring(0, 21) + '…' : task.name, M + 2, rowY + RH * 0.65)
+          doc.text(task.name.length > 25 ? task.name.substring(0, 24) + '…' : task.name, M + 2, rowY + RH * 0.65)
           const off = differenceInDays(new Date(task.startDate), rangeStart), dur = Math.max(1, differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1)
           const bx = GL + off * CW, bw = Math.max(CW, dur * CW), bh = RH * 0.55, by = rowY + (RH - bh) / 2
           if (conflict) { doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4); doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S') }
@@ -319,7 +309,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         })
         rowY += 1.5
       })
-
       doc.addPage('a4', 'landscape')
       doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
@@ -334,7 +323,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 50 }, 2: { cellWidth: 45 }, 3: { cellWidth: 25 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 }, 6: { cellWidth: 18 } },
         margin: { left: M, right: M },
       })
-
       doc.save('kronoz-gantt.pdf')
       toast.dismiss(tid); toast.success('PDF descargado')
     } catch (err) { console.error(err); toast.dismiss(tid); toast.error('Error al generar PDF') }
@@ -342,44 +330,34 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
   return (
     <div className="space-y-4 animate-fade-in">
+      {selectedTask && <TaskDetailPopup task={selectedTask} users={users} projects={projects} onClose={() => setSelectedTask(null)} />}
+
       <div className="page-header">
         <div>
           <h1 className="page-title">Diagrama Gantt</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{filteredTasks.length} tareas visualizadas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Group mode toggle */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
-            <button onClick={() => setGroupMode('user')}
-              className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
-                groupMode === 'user' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+            <button onClick={() => setGroupMode('user')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', groupMode === 'user' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
               <Users className="w-3 h-3" /> Por usuario
             </button>
-            <button onClick={() => setGroupMode('project')}
-              className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
-                groupMode === 'project' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+            <button onClick={() => setGroupMode('project')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', groupMode === 'project' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
               <Folder className="w-3 h-3" /> Por proyecto
             </button>
           </div>
-
-          {/* Color mode */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
             {(['status', 'user', 'project'] as ColorMode[]).map((mode) => (
-              <button key={mode} onClick={() => setColorMode(mode)}
-                className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all',
-                  colorMode === mode ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              <button key={mode} onClick={() => setColorMode(mode)} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all', colorMode === mode ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
                 {mode === 'status' ? 'Estado' : mode === 'user' ? 'Usuario' : 'Proyecto'}
               </button>
             ))}
           </div>
-
-          {/* Zoom */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
             <button onClick={() => setDayWidth(Math.max(0, dayWidth - 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomOut className="w-3.5 h-3.5" /></button>
             <span className="text-xs text-gray-500 px-1">{cellWidth}px</span>
             <button onClick={() => setDayWidth(Math.min(DAY_WIDTH_OPTIONS.length - 1, dayWidth + 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomIn className="w-3.5 h-3.5" /></button>
           </div>
-
           <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
             <Download className="w-4 h-4" /> Exportar PDF
           </button>
@@ -399,7 +377,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         </div>
       )}
 
-      {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 text-xs">
         {colorMode === 'status' && Object.entries(STATUS_COLORS).map(([s, c]) => (
           <div key={s} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: c }} /><span className="text-gray-500">{getStatusLabel(s)}</span></div>
@@ -412,59 +389,119 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         ))}
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-amber-300 border-2 border-amber-500" /><span className="text-gray-500">Conflicto</span></div>
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-gray-200 dark:bg-neutral-700" /><span className="text-gray-500">Fin de semana</span></div>
+        <span className="text-gray-400 italic">Clic en una barra para ver detalle</span>
       </div>
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <div style={{ minWidth: days.length * cellWidth + 200 }}>
+          <div style={{ minWidth: days.length * cellWidth + LABEL_W }}>
             <TimelineHeader />
 
-            {/* ── VISTA POR USUARIO ── */}
+            {/* VISTA POR USUARIO */}
             {groupMode === 'user' && groupedByUser.map(({ user, tasks: ut }) => (
               <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
-                {/* User header */}
                 <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
-                  <div className="w-48 flex-shrink-0 px-3 py-2 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800">
+                  <div className="flex-shrink-0 px-3 py-2 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1' }}>{getInitials(user.name)}</div>
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{user.name}</span>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{user.name}</span>
                   </div>
                   <div className="flex-1 h-8 relative">
                     <div className="absolute top-0 bottom-0 w-px bg-brand-400 opacity-40 z-10" style={{ left: todayOffset }} />
                     {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100 dark:bg-neutral-800/60" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                   </div>
                 </div>
-                {ut.map((task) => <TaskRow key={task.id} task={task} />)}
+                {ut.map((task) => {
+                  const { left, width } = getPos(task)
+                  const conflict = conflictIds.has(task.id)
+                  const project = projects.find(p => p.id === task.projectId)
+                  const barColor = getTaskColor(task, conflict)
+                  return (
+                    <div key={task.id} className="flex items-center hover:bg-gray-50/50 dark:hover:bg-neutral-800/10 transition-colors">
+                      <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                        <div className="flex items-center gap-1.5">
+                          {conflict && <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                          <p className="text-xs text-gray-700 dark:text-gray-300" title={task.name}>{task.name}</p>
+                        </div>
+                        {project && <div className="flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: project.color }} /><p className="text-xs text-gray-400">{project.name}</p></div>}
+                      </div>
+                      <div className="flex-1 h-10 relative" style={{ minWidth: days.length * cellWidth }}>
+                        {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
+                        <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
+                        <div className={cn('absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all', conflict && 'ring-2 ring-amber-400')}
+                          style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 22, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
+                          onClick={() => setSelectedTask(task)}
+                          title="Clic para ver detalle">
+                          <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
+                          {cellWidth >= 28 && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ))}
 
-            {/* ── VISTA POR PROYECTO ── */}
+            {/* VISTA POR PROYECTO */}
             {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
               const projBar = getProjectBar(pt)
-              const pRgb = hexToRgb(project.color)
               return (
                 <div key={project.id} className="border-b border-gray-50 dark:border-neutral-800">
                   {/* Project header with summary bar */}
                   <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50" style={{ backgroundColor: `${project.color}12` }}>
-                    <div className="w-48 flex-shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800">
+                    <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                       <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
-                      <span className="text-xs font-bold text-gray-800 dark:text-white truncate">{project.name}</span>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">{pt.length} tareas</span>
+                      <span className="text-xs font-bold text-gray-800 dark:text-white">{project.name}</span>
+                      <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{pt.length} tareas</span>
                     </div>
-                    <div className="flex-1 h-10 relative" style={{ minWidth: days.length * cellWidth }}>
+                    <div className="flex-1 h-11 relative" style={{ minWidth: days.length * cellWidth }}>
                       {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/50" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                       <div className="absolute top-0 bottom-0 w-px bg-brand-400 opacity-40 z-10" style={{ left: todayOffset }} />
-                      {/* Summary bar — thick */}
                       {projBar && (
                         <div className="absolute rounded-lg overflow-hidden"
-                          style={{ left: projBar.left, width: projBar.width, height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: project.color }}>
-                          <div className="h-full rounded-lg opacity-40 bg-white" style={{ width: `${projBar.progress}%` }} />
+                          style={{ left: projBar.left, width: projBar.width, height: 12, top: '50%', transform: 'translateY(-50%)', backgroundColor: project.color, opacity: 0.85 }}>
+                          <div className="h-full rounded-lg bg-white opacity-30" style={{ width: `${projBar.progress}%` }} />
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Task rows — thin bars */}
-                  {pt.map((task) => <TaskRow key={task.id} task={task} thin />)}
+                  {/* Task rows — thin with assignee */}
+                  {pt.map((task) => {
+                    const { left, width } = getPos(task)
+                    const conflict = conflictIds.has(task.id)
+                    const user = users.find(u => u.id === task.userId)
+                    const barColor = getTaskColor(task, conflict)
+                    return (
+                      <div key={task.id} className="flex items-center hover:bg-gray-50/50 dark:hover:bg-neutral-800/10 transition-colors">
+                        <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                          <div className="flex items-center gap-1.5 pl-3">
+                            {conflict && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
+                            <p className="text-xs text-gray-600 dark:text-gray-400">{task.name}</p>
+                          </div>
+                          {user && (
+                            <div className="flex items-center gap-1 mt-0.5 pl-3">
+                              <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
+                                {getInitials(user.name).charAt(0)}
+                              </div>
+                              <p className="text-[10px] text-gray-400">{user.name.split(' ')[0]}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 relative" style={{ height: 32, minWidth: days.length * cellWidth }}>
+                          {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
+                          <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
+                          <div
+                            className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
+                            style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 14, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1 }}
+                            onClick={() => setSelectedTask(task)}
+                            title={`${task.name} — clic para ver detalle`}>
+                            <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
+                            {cellWidth >= 28 && width > 40 && <span className="relative text-white text-[9px] font-medium px-1 truncate z-10 leading-none flex items-center h-full">{task.name}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
@@ -478,13 +515,10 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
       <div className="flex items-center justify-center gap-3">
         <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="btn-secondary">← Mes anterior</button>
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[120px] text-center">
-          {format(currentDate, 'MMMM yyyy', { locale: es })}
-        </span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[120px] text-center">{format(currentDate, 'MMMM yyyy', { locale: es })}</span>
         <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="btn-secondary">Mes siguiente →</button>
         {!isCurrentMonth && (
-          <button onClick={() => setCurrentDate(new Date())}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
+          <button onClick={() => setCurrentDate(new Date())} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
             <CalendarCheck className="w-3.5 h-3.5" /> Hoy
           </button>
         )}
