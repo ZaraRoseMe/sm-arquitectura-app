@@ -18,8 +18,11 @@ export default async function GanttPage() {
     }),
     isAdmin
       ? prisma.user.findMany({ select: { id: true, name: true, color: true } })
-      : Promise.resolve([{ id: session.user.id, name: session.user.name || '' }]),
-    prisma.project.findMany({ select: { id: true, name: true, color: true } }),
+      : Promise.resolve([{ id: session.user.id, name: session.user.name || '', color: (session.user as any).color }]),
+    // Include startDate and endDate so Gantt can use project dates for bars
+    prisma.project.findMany({
+      select: { id: true, name: true, color: true, startDate: true, endDate: true },
+    }),
   ])
 
   return (
