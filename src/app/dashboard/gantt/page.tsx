@@ -2,8 +2,16 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
-import { format } from 'date-fns'
 import GanttClient from '@/components/gantt/GanttClient'
+
+// Extract YYYY-MM-DD from a Date avoiding UTC offset issues
+function toDateStr(date: Date): string {
+  // Use UTC methods since dates are stored at 12:00 UTC — safe to extract UTC date
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
 
 export default async function GanttPage() {
   const session = await auth()
@@ -25,11 +33,11 @@ export default async function GanttPage() {
     }),
   ])
 
-  // Pass dates as YYYY-MM-DD strings to avoid UTC serialization issues
+  // Pass dates as YYYY-MM-DD strings using UTC methods (dates stored at 12:00 UTC)
   const projects = projectsRaw.map(p => ({
     ...p,
-    startDate: format(p.startDate, 'yyyy-MM-dd'),
-    endDate: format(p.endDate, 'yyyy-MM-dd'),
+    startDate: toDateStr(p.startDate),
+    endDate: toDateStr(p.endDate),
   }))
 
   return (
