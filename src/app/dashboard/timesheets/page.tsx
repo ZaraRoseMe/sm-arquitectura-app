@@ -10,7 +10,7 @@ export default async function TimesheetsPage() {
 
   const isAdmin = session.user.role === 'ADMIN'
 
-  const [entries, projects, users] = await Promise.all([
+  const [entries, workPlans, projects, users, tasks] = await Promise.all([
     prisma.timeEntry.findMany({
       where: isAdmin ? {} : { userId: session.user.id },
       include: {
@@ -19,17 +19,30 @@ export default async function TimesheetsPage() {
       },
       orderBy: { date: 'desc' },
     }),
+    prisma.workPlan.findMany({
+      where: isAdmin ? {} : { userId: session.user.id },
+      include: {
+        task: { include: { project: true } },
+        user: { select: { id: true, name: true, color: true } },
+      },
+      orderBy: { date: 'asc' },
+    }),
     prisma.project.findMany({ orderBy: { name: 'asc' } }),
     isAdmin
       ? prisma.user.findMany({ select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } })
       : prisma.user.findMany({ where: { id: session.user.id }, select: { id: true, name: true, color: true } }),
+    isAdmin
+      ? prisma.task.findMany({ include: { project: true }, orderBy: { name: 'asc' } })
+      : Promise.resolve([]),
   ])
 
   return (
     <TimesheetsClient
       entries={entries as any}
+      workPlans={workPlans as any}
       projects={projects}
       users={users}
+      tasks={tasks as any}
       isAdmin={isAdmin}
       currentUserId={session.user.id}
       currentUserColor={(session.user as any).color}
