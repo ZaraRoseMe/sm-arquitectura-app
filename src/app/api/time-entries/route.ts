@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
 
   const entries = await prisma.timeEntry.findMany({
     where: {
-      // Non-admins can only see their own entries
       userId: isAdmin ? (userId || undefined) : session.user.id,
       ...(projectId && { task: { projectId } }),
       ...(from && to && {
@@ -52,20 +51,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
   }
 
-  const entry = await prisma.timeEntry.create({
-    data: {
-      taskId,
-      userId: session.user.id,
-      date: parseLocalDate(date),
-      hours: hours || 0,
-      minutes: minutes || 0,
-      note: note || null,
-    },
-    include: {
-      task: { include: { project: true } },
-      user: { select: { id: true, name: true, color: true } },
-    },
+  const parsedDate = parseLocalDate(date)
+
+  // Upsert: si ya existe un registro para este usuario+tarea+día, lo actualiza
+  const existing = await prisma.timeEntry.findFirst({
+    where: { taskId, userId: session.user.id, date: parsedDate },
   })
+
+  const entry = existing
+    ? await prisma.timeEntry.update({
+        where: { id: existing.id },
+        data: { hours: hours || 0, minutes: minutes || 0, note: note || null },
+        include: {
+          task: { include: { project: true } },
+          user: { select: { id: true, name: true, color: true } },
+        },
+      })
+    : await prisma.timeEntry.create({
+        data: {
+          taskId,
+          userId: session.user.id,
+          date: parsedDate,
+          hours: hours || 0,
+          minutes: minutes || 0,
+          note: note || null,
+        },
+        include: {
+          task: { include: { project: true } },
+          user: { select: { id: true, name: true, color: true } },
+        },
+      })
 
   return NextResponse.json(entry, { status: 201 })
 }
