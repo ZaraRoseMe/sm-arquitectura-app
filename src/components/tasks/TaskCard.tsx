@@ -1,11 +1,12 @@
 'use client'
 // src/components/tasks/TaskCard.tsx
 import { useState } from 'react'
-import { Edit2, Trash2, Play, Pause, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Edit2, Trash2, Play, Pause, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, Timer } from 'lucide-react'
 import { cn, getStatusColor, getStatusLabel, formatDate, isOverdue, getInitials } from '@/lib/utils'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { Task } from '@/types'
+import TimeEntryModal from '@/components/time/TimeEntryModal'
 
 interface DescriptionEntry { text: string; createdAt: string; authorName: string }
 
@@ -31,10 +32,12 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
   const [showPauseDialog, setShowPauseDialog] = useState(false)
   const [pauseReason, setPauseReason] = useState('')
   const [showDesc, setShowDesc] = useState(false)
+  const [showTimeModal, setShowTimeModal] = useState(false)
 
   const colors = getStatusColor(task.status)
   const overdue = isOverdue(task.endDate) && task.status !== 'TERMINADO'
   const canEdit = isAdmin || task.userId === currentUserId
+  const canLogTime = isAdmin || task.userId === currentUserId
   const avatarColor = (task.user as any)?.color || '#6366F1'
   const daysLeft = Math.ceil((new Date(task.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
   const entries = parseEntries((task as any).description)
@@ -138,7 +141,7 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         {task.user && (
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ backgroundColor: avatarColor }}>
@@ -147,27 +150,41 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
             <span className="text-xs text-gray-500 dark:text-gray-400">{task.user.name.split(' ')[0]}</span>
           </div>
         )}
-        {canEdit && task.status !== 'TERMINADO' && (
-          <div className="flex gap-1 ml-auto">
-            {task.status === 'EN_PROGRESO' && (
-              <button onClick={() => setShowPauseDialog(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
-                <Pause className="w-3.5 h-3.5" /> Pausar
-              </button>
-            )}
-            {(task.status === 'PENDIENTE' || task.status === 'PAUSADO') && (
-              <button onClick={() => onStatusChange(task.id, 'EN_PROGRESO')} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
-                <Play className="w-3.5 h-3.5" /> {task.status === 'PAUSADO' ? 'Reanudar' : 'Iniciar'}
-              </button>
-            )}
-            {task.status === 'EN_PROGRESO' && (
-              <button onClick={() => onStatusChange(task.id, 'TERMINADO')} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
-                <CheckCircle className="w-3.5 h-3.5" /> Terminar
-              </button>
-            )}
-          </div>
-        )}
+
+        <div className="flex gap-1 ml-auto flex-wrap justify-end">
+          {/* Registrar tiempo — disponible para todos */}
+          {canLogTime && (
+            <button
+              onClick={() => setShowTimeModal(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors"
+              title="Registrar tiempo">
+              <Timer className="w-3.5 h-3.5" /> Tiempo
+            </button>
+          )}
+
+          {canEdit && task.status !== 'TERMINADO' && (
+            <>
+              {task.status === 'EN_PROGRESO' && (
+                <button onClick={() => setShowPauseDialog(true)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
+                  <Pause className="w-3.5 h-3.5" /> Pausar
+                </button>
+              )}
+              {(task.status === 'PENDIENTE' || task.status === 'PAUSADO') && (
+                <button onClick={() => onStatusChange(task.id, 'EN_PROGRESO')} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                  <Play className="w-3.5 h-3.5" /> {task.status === 'PAUSADO' ? 'Reanudar' : 'Iniciar'}
+                </button>
+              )}
+              {task.status === 'EN_PROGRESO' && (
+                <button onClick={() => onStatusChange(task.id, 'TERMINADO')} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+                  <CheckCircle className="w-3.5 h-3.5" /> Terminar
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
+      {/* Pause dialog */}
       {showPauseDialog && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-neutral-800">
           <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo de pausa (opcional)</p>
@@ -180,6 +197,16 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
             </button>
           </div>
         </div>
+      )}
+
+      {/* Time entry modal */}
+      {showTimeModal && (
+        <TimeEntryModal
+          taskId={task.id}
+          taskName={task.name}
+          onClose={() => setShowTimeModal(false)}
+          onSaved={() => setShowTimeModal(false)}
+        />
       )}
     </div>
   )
