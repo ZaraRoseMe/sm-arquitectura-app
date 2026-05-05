@@ -212,8 +212,10 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     const [ey, em, eday] = ed.split('-').map(Number)
     const startDate = new Date(sy, sm - 1, sday, 0, 0, 0, 0)
     const endDate = new Date(ey, em - 1, eday, 0, 0, 0, 0)
-    const left = Math.max(0, differenceInDays(startDate, effectiveRangeStart) * cellWidth)
-    const width = Math.max(cellWidth * 2, (differenceInDays(endDate, startDate) + 1) * cellWidth)
+    // Clamp start to rangeStart so bar doesn't overflow left edge
+    const clampedStart = startDate < rangeStart ? rangeStart : startDate
+    const left = Math.max(0, differenceInDays(clampedStart, rangeStart) * cellWidth)
+    const width = Math.max(cellWidth * 2, (differenceInDays(endDate, clampedStart) + 1) * cellWidth)
     const done = tasks.filter(t => t.status === 'TERMINADO').length
     const progress = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0
     return { left, width, progress }
