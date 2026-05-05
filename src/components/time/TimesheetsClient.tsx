@@ -1,19 +1,17 @@
 'use client'
 // src/components/time/TimesheetsClient.tsx
 import { useState, useMemo } from 'react'
-import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder, CalendarCheck } from 'lucide-react'
+import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder } from 'lucide-react'
 import { eachDayOfInterval, format, isWeekend, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import WorkPlanModal from './WorkPlanModal'
 
 interface TimesheetsClientProps {
   entries: any[]
   workPlans: any[]
   projects: any[]
   users: any[]
-  tasks: any[]
   isAdmin: boolean
   currentUserId: string
   currentUserColor?: string
@@ -137,7 +135,6 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [userFilter, setUserFilter] = useState('ALL')
   const [groupMode, setGroupMode] = useState<GroupMode>('project')
-  const [showWorkPlanModal, setShowWorkPlanModal] = useState(false)
 
   const rangeStart = startOfMonth(currentMonth)
   const rangeEnd = endOfMonth(currentMonth)
@@ -266,16 +263,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {showWorkPlanModal && (
-        <WorkPlanModal
-          tasks={tasks}
-          users={users}
-          onClose={() => setShowWorkPlanModal(false)}
-          onSaved={(newPlans) => { setWorkPlans(prev => [...prev, ...newPlans]); setShowWorkPlanModal(false) }}
-        />
-      )}
-
-      {/* Header */}
+{/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Tiempos</h1>
@@ -287,13 +275,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
           </div>
         </div>
         <div className="flex gap-2">
-          {isAdmin && (
-            <button onClick={() => setShowWorkPlanModal(true)}
-              className="btn-primary flex items-center gap-2 text-sm bg-emerald-600 hover:bg-emerald-700">
-              <CalendarCheck className="w-4 h-4" /> Programar tiempo
-            </button>
-          )}
-          <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
+<button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
             <Download className="w-4 h-4" /> PDF
           </button>
         </div>
