@@ -35,6 +35,7 @@ model User {
   tasks              Task[]
   notifications      Notification[]
   pauseLogs          PauseLog[]
+  timeEntries        TimeEntry[]
   sentMessages       Message[]  @relation("SentMessages")
   receivedMessages   Message[]  @relation("ReceivedMessages")
 
@@ -70,7 +71,22 @@ model Task {
   user        User       @relation(fields: [userId], references: [id])
   pauseLogs     PauseLog[]
   notifications Notification[]
+  timeEntries   TimeEntry[]
   @@map("tasks")
+}
+
+model TimeEntry {
+  id        String   @id @default(cuid())
+  date      DateTime
+  hours     Int      @default(0)
+  minutes   Int      @default(0)
+  note      String?
+  createdAt DateTime @default(now())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  @@map("time_entries")
 }
 
 model PauseLog {
