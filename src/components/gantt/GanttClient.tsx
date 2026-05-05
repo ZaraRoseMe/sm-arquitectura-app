@@ -130,18 +130,12 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const isCurrentMonth = isSameMonth(currentDate, today)
   const cellWidth = DAY_WIDTH_OPTIONS[dayWidth]
 
-  const rangeStartRaw = isCurrentMonth ? subDays(today, 3) : startOfMonth(subMonths(currentDate, 1))
+  const rangeStartRaw = isCurrentMonth ? subDays(today, 15) : startOfMonth(subMonths(currentDate, 1))
   const rangeStart = new Date(rangeStartRaw.getFullYear(), rangeStartRaw.getMonth(), rangeStartRaw.getDate(), 0, 0, 0, 0)
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
-  // Extend rangeStart if tasks start earlier
-  const allTaskStarts = initialTasks.map(t => {
-    const s = String(t.startDate).substring(0, 10)
-    const [y, m, d] = s.split('-').map(Number)
-    return new Date(y, m - 1, d)
-  })
-  const earliestTask = allTaskStarts.length ? new Date(Math.min(...allTaskStarts.map(d => d.getTime()))) : rangeStart
-  const effectiveRangeStart = earliestTask < rangeStart ? earliestTask : rangeStart
-  const days = eachDayOfInterval({ start: effectiveRangeStart, end: rangeEnd })
+  const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+  // Use rangeStart as the base for all position calculations
+  const effectiveRangeStart = rangeStart
 
   const months = useMemo(() => {
     const result: { label: string; days: Date[] }[] = []
@@ -198,10 +192,14 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   }
 
   function getPos(task: Task) {
-    return {
-      left: Math.max(0, differenceInDays(parseDate(task.startDate), effectiveRangeStart) * cellWidth),
-      width: Math.max(cellWidth, (differenceInDays(parseDate(task.endDate), parseDate(task.startDate)) + 1) * cellWidth),
-    }
+    const taskStart = parseDate(task.startDate)
+    const taskEnd = parseDate(task.endDate)
+    const clampedStart = taskStart < rangeStart ? rangeStart : taskStart
+    const left = Math.max(0, differenceInDays(clampedStart, rangeStart) * cellWidth)
+    const fullWidth = (differenceInDays(taskEnd, taskStart) + 1) * cellWidth
+    const hiddenDays = taskStart < rangeStart ? differenceInDays(rangeStart, taskStart) : 0
+    const width = Math.max(cellWidth, fullWidth - hiddenDays * cellWidth)
+    return { left, width }
   }
 
   function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
