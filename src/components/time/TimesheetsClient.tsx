@@ -1,8 +1,8 @@
 'use client'
 // src/components/time/TimesheetsClient.tsx
 import { useState, useMemo } from 'react'
-import { Clock, Download, Trash2, Filter } from 'lucide-react'
-import { format, startOfWeek, endOfWeek, eachWeekOfInterval, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { Clock, Download, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { eachDayOfInterval, format, isWeekend, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -13,25 +13,11 @@ interface TimesheetsClientProps {
   users: any[]
   isAdmin: boolean
   currentUserId: string
+  currentUserName?: string
+  currentUserColor?: string
 }
 
-function formatTime(hours: number, minutes: number) {
-  if (hours === 0) return `${minutes}min`
-  if (minutes === 0) return `${hours}h`
-  return `${hours}h ${minutes}min`
-}
-
-function totalMinutes(entries: any[]) {
-  return entries.reduce((sum, e) => sum + e.hours * 60 + e.minutes, 0)
-}
-
-function minutesToTime(mins: number) {
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return formatTime(h, m)
-}
-
-function toDateStr(date: any) {
+function toDateStr(date: any): string {
   const d = new Date(date)
   const y = d.getUTCFullYear()
   const m = String(d.getUTCMonth() + 1).padStart(2, '0')
@@ -39,45 +25,97 @@ function toDateStr(date: any) {
   return `${y}-${m}-${day}`
 }
 
-export default function TimesheetsClient({ entries: initialEntries, projects, users, isAdmin, currentUserId }: TimesheetsClientProps) {
+function formatTime(hours: number, minutes: number) {
+  if (hours === 0 && minutes === 0) return '0min'
+  if (hours === 0) return `${minutes}min`
+  if (minutes === 0) return `${hours}h`
+  return `${hours}h${minutes}min`
+}
+
+function totalMins(entries: any[]) {
+  return entries.reduce((s, e) => s + e.hours * 60 + e.minutes, 0)
+}
+
+function minsToTime(m: number) {
+  return formatTime(Math.floor(m / 60), m % 60)
+}
+
+const DAY_W = 32 // px per day cell
+const LABEL_W = 200
+
+function DayCell({ date }: { date: Date }) {
+  const weekend = isWeekend(date)
+  const today = isSameDay(date, new Date())
+  const letter = format(date, 'EEEEE', { locale: es }).toUpperCase()
+  return (
+    <div className={cn('flex-shrink-0 flex flex-col items-center justify-center border-r text-[9px]',
+      today ? 'border-indigo-400 text-white' : weekend ? 'border-gray-100 dark:border-neutral-800 text-gray-400' : 'border-gray-50 dark:border-neutral-800/50 text-gray-400 dark:text-gray-600')}
+      style={{ width: DAY_W, backgroundColor: today ? '#6366F1' : weekend ? undefined : undefined }}>
+      <span className="font-bold leading-none">{letter}</span>
+      <span className="font-medium">{format(date, 'd')}</span>
+    </div>
+  )
+}
+
+export default function TimesheetsClient({ entries: initialEntries, projects, users, isAdmin, currentUserId, currentUserColor }: TimesheetsClientProps) {
   const [entries, setEntries] = useState(initialEntries)
+  const [currentMonth, setCurrentMonth] = useState(new Date())
   const [projectFilter, setProjectFilter] = useState('ALL')
-  const [userFilter, setUserFilter] = useState('ALL')
-  const [monthFilter, setMonthFilter] = useState(() => format(new Date(), 'yyyy-MM'))
 
+  // Range: full current month by default
+  const rangeStart = startOfMonth(currentMonth)
+  const rangeEnd = endOfMonth(currentMonth)
+  const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+
+  const months = useMemo(() => {
+    const result: { label: string; days: Date[] }[] = []
+    let cm = ''; let cd: Date[] = []
+    days.forEach(day => {
+      const ml = format(day, 'MMMM yyyy', { locale: es })
+      if (ml !== cm) { if (cd.length) result.push({ label: cm, days: cd }); cm = ml; cd = [] }
+      cd.push(day)
+    })
+    if (cd.length) result.push({ label: cm, days: cd })
+    return result
+  }, [days])
+
+  // Filter entries by month and project
   const filtered = useMemo(() => entries.filter(e => {
+    const ds = toDateStr(e.date)
+    const monthStr = format(currentMonth, 'yyyy-MM')
+    if (!ds.startsWith(monthStr)) return false
     if (projectFilter !== 'ALL' && e.task?.project?.id !== projectFilter) return false
-    if (userFilter !== 'ALL' && e.userId !== userFilter) return false
-    const entryMonth = toDateStr(e.date).substring(0, 7)
-    if (monthFilter && entryMonth !== monthFilter) return false
     return true
-  }), [entries, projectFilter, userFilter, monthFilter])
+  }), [entries, currentMonth, projectFilter])
 
-  // Group by project
-  const byProject = useMemo(() => {
-    const g: Record<string, { project: any; entries: any[]; total: number }> = {}
-    filtered.forEach(e => {
-      const pid = e.task?.project?.id || 'sin-proyecto'
-      if (!g[pid]) g[pid] = { project: e.task?.project, entries: [], total: 0 }
-      g[pid].entries.push(e)
-      g[pid].total += e.hours * 60 + e.minutes
-    })
-    return Object.values(g).sort((a, b) => b.total - a.total)
-  }, [filtered])
+  // Group entries by user → task
+  const groupedByUser = useMemo(() => {
+    // Build user list: admin first, then others
+    const allUsers = isAdmin
+      ? [
+          // current user (admin) first
+          ...(users.filter(u => u.id === currentUserId)),
+          ...(users.filter(u => u.id !== currentUserId)),
+        ]
+      : users.filter(u => u.id === currentUserId)
 
-  // Group by user (for admin)
-  const byUser = useMemo(() => {
-    const g: Record<string, { user: any; total: number }> = {}
-    filtered.forEach(e => {
-      const uid = e.userId
-      if (!g[uid]) g[uid] = { user: e.user, total: 0 }
-      g[uid].total += e.hours * 60 + e.minutes
-    })
-    return Object.values(g).sort((a, b) => b.total - a.total)
-  }, [filtered])
+    return allUsers.map(user => {
+      const userEntries = filtered.filter(e => e.userId === user.id)
+      // Group by task
+      const taskMap: Record<string, { task: any; entries: any[] }> = {}
+      userEntries.forEach(e => {
+        const tid = e.task?.id || 'unknown'
+        if (!taskMap[tid]) taskMap[tid] = { task: e.task, entries: [] }
+        taskMap[tid].entries.push(e)
+      })
+      return { user, tasks: Object.values(taskMap), total: totalMins(userEntries) }
+    }).filter(u => u.tasks.length > 0 || u.user.id === currentUserId)
+  }, [filtered, users, currentUserId, isAdmin])
 
-  const grandTotal = totalMinutes(filtered)
-  const maxUserMinutes = Math.max(...byUser.map(u => u.total), 1)
+  // Get entries for a specific day and task
+  function getDayEntries(taskEntries: any[], date: Date) {
+    return taskEntries.filter(e => toDateStr(e.date) === toDateStr(date))
+  }
 
   async function handleDelete(id: string) {
     if (!confirm('¿Eliminar este registro?')) return
@@ -95,217 +133,208 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
       const { default: autoTable } = await import('jspdf-autotable')
       const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
       const W = 297, M = 12
-
       doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
       doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
       doc.text('KRONOZ — Reporte de Tiempos', M, 9)
       doc.setFontSize(7); doc.setFont('helvetica', 'normal')
-      doc.text(`${monthFilter} · Total: ${minutesToTime(grandTotal)}`, W - M - 40, 9)
-
+      doc.text(format(currentMonth, 'MMMM yyyy', { locale: es }), W - M - 30, 9)
       autoTable(doc, {
         startY: 20,
-        head: [['Fecha', 'Proyecto', 'Tarea', 'Colaborador', 'Tiempo', 'Nota']],
-        body: filtered.map(e => [
-          toDateStr(e.date),
-          e.task?.project?.name || '',
-          e.task?.name || '',
-          e.user?.name || '',
-          formatTime(e.hours, e.minutes),
-          e.note || '',
-        ]),
+        head: [['Colaborador', 'Proyecto', 'Tarea', 'Fecha', 'Tiempo', 'Nota']],
+        body: filtered.map(e => [e.user?.name || '', e.task?.project?.name || '', e.task?.name || '', toDateStr(e.date), formatTime(e.hours, e.minutes), e.note || '']),
         headStyles: { fillColor: [79, 82, 200], textColor: 255, fontSize: 7, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7, textColor: [40, 45, 80] },
         alternateRowStyles: { fillColor: [242, 243, 252] },
-        columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 45 }, 2: { cellWidth: 55 }, 3: { cellWidth: 40 }, 4: { cellWidth: 22 }, 5: { cellWidth: 60 } },
         margin: { left: M, right: M },
       })
-
-      doc.save(`kronoz-tiempos-${monthFilter}.pdf`)
+      doc.save(`kronoz-tiempos-${format(currentMonth, 'yyyy-MM')}.pdf`)
       toast.dismiss(tid); toast.success('PDF descargado')
-    } catch (err) {
-      toast.dismiss(tid); toast.error('Error al generar PDF')
-    }
+    } catch { toast.dismiss(tid); toast.error('Error') }
   }
 
-  async function handleExportExcel() {
-    const tid = toast.loading('Generando Excel...')
-    try {
-      const { default: ExcelJS } = await import('exceljs')
-      const wb = new ExcelJS.Workbook()
-      const ws = wb.addWorksheet('Tiempos')
-
-      ws.columns = [
-        { header: 'Fecha', key: 'date', width: 14 },
-        { header: 'Proyecto', key: 'project', width: 25 },
-        { header: 'Tarea', key: 'task', width: 35 },
-        { header: 'Colaborador', key: 'user', width: 22 },
-        { header: 'Horas', key: 'hours', width: 8 },
-        { header: 'Minutos', key: 'minutes', width: 10 },
-        { header: 'Tiempo', key: 'time', width: 12 },
-        { header: 'Nota', key: 'note', width: 40 },
-      ]
-
-      ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
-      ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
-
-      filtered.forEach(e => {
-        ws.addRow({
-          date: toDateStr(e.date),
-          project: e.task?.project?.name || '',
-          task: e.task?.name || '',
-          user: e.user?.name || '',
-          hours: e.hours,
-          minutes: e.minutes,
-          time: formatTime(e.hours, e.minutes),
-          note: e.note || '',
-        })
-      })
-
-      // Total row
-      const totalRow = ws.addRow({ date: 'TOTAL', time: minutesToTime(grandTotal) })
-      totalRow.font = { bold: true }
-      totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } }
-
-      const buf = await wb.xlsx.writeBuffer()
-      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = `kronoz-tiempos-${monthFilter}.xlsx`; a.click()
-      URL.revokeObjectURL(url)
-      toast.dismiss(tid); toast.success('Excel descargado')
-    } catch (err) {
-      toast.dismiss(tid); toast.error('Error al generar Excel')
-    }
-  }
-
-  // Month options — last 6 months
-  const monthOptions = Array.from({ length: 6 }, (_, i) => {
-    const d = subMonths(new Date(), i)
-    return { value: format(d, 'yyyy-MM'), label: format(d, 'MMMM yyyy', { locale: es }) }
-  })
+  const grandTotal = totalMins(filtered)
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Tiempos</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Total: <span className="font-semibold text-gray-800 dark:text-white">{minutesToTime(grandTotal)}</span>
+            Total: <span className="font-semibold text-gray-800 dark:text-white">{minsToTime(grandTotal)}</span>
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" /> Excel
-          </button>
           <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
             <Download className="w-4 h-4" /> PDF
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} className="input w-48 capitalize">
-          {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Month nav */}
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
+          <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
+            <ChevronLeft className="w-4 h-4 text-gray-500" />
+          </button>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[130px] text-center">
+            {format(currentMonth, 'MMMM yyyy', { locale: es })}
+          </span>
+          <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
+            <ChevronRight className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
         <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="input w-48">
           <option value="ALL">Todos los proyectos</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        {isAdmin && (
-          <select value={userFilter} onChange={e => setUserFilter(e.target.value)} className="input w-44">
-            <option value="ALL">Todos los usuarios</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        )}
       </div>
 
-      {/* Charts — hours by user */}
-      {byUser.length > 0 && (
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Horas por colaborador</h2>
-          <div className="space-y-3">
-            {byUser.map(({ user, total }) => (
-              <div key={user.id} className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                  style={{ backgroundColor: user.color || '#6366F1' }}>
-                  {getInitials(user.name)}
+      {/* Gantt de tiempos */}
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: days.length * DAY_W + LABEL_W }}>
+
+            {/* Header */}
+            <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
+              <div className="flex-shrink-0 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  {format(currentMonth, 'MMMM yyyy', { locale: es }).toUpperCase()}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{user.name}</span>
-                    <span className="text-xs text-gray-500">{minutesToTime(total)}</span>
+              </div>
+              <div className="flex">
+                {days.map(day => <DayCell key={day.toISOString()} date={day} />)}
+              </div>
+            </div>
+
+            {/* Users */}
+            {groupedByUser.length === 0 ? (
+              <div className="py-16 text-center">
+                <Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">No hay registros para este período</p>
+              </div>
+            ) : groupedByUser.map(({ user, tasks, total }) => (
+              <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
+                {/* User header row */}
+                <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
+                  <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                        style={{ backgroundColor: user.color || '#6366F1' }}>
+                        {getInitials(user.name)}
+                      </div>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{user.name}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 flex-shrink-0 ml-1">{minsToTime(total)}</span>
                   </div>
-                  <div className="h-2 bg-gray-100 dark:bg-neutral-700 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-brand-500 transition-all duration-700"
-                      style={{ width: `${(total / maxUserMinutes) * 100}%`, backgroundColor: user.color || '#6366F1' }} />
+                  {/* Day totals row for user */}
+                  <div className="flex">
+                    {days.map(day => {
+                      const dayEntries = filtered.filter(e => e.userId === user.id && toDateStr(e.date) === toDateStr(day))
+                      const mins = totalMins(dayEntries)
+                      const weekend = isWeekend(day)
+                      const today = isSameDay(day, new Date())
+                      return (
+                        <div key={day.toISOString()}
+                          className={cn('flex-shrink-0 flex items-center justify-center border-r text-[9px] font-medium',
+                            today ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600' :
+                            weekend ? 'border-gray-100 dark:border-neutral-800 bg-gray-100/50 dark:bg-neutral-800/30 text-gray-400' :
+                            'border-gray-50 dark:border-neutral-800/50 text-gray-400')}
+                          style={{ width: DAY_W, height: 32 }}>
+                          {mins > 0 ? <span className="text-brand-600 dark:text-brand-400 font-bold">{minsToTime(mins)}</span> : null}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
+
+                {/* Task rows */}
+                {tasks.map(({ task, entries: taskEntries }) => (
+                  <div key={task?.id} className="flex items-center hover:bg-gray-50/30 dark:hover:bg-neutral-800/10 transition-colors group">
+                    <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800 pl-8" style={{ width: LABEL_W }}>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{task?.name}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{task?.project?.name}</p>
+                    </div>
+                    <div className="flex">
+                      {days.map(day => {
+                        const dayEntries = getDayEntries(taskEntries, day)
+                        const mins = totalMins(dayEntries)
+                        const weekend = isWeekend(day)
+                        const today = isSameDay(day, new Date())
+                        const hasWork = mins > 0
+
+                        return (
+                          <div key={day.toISOString()}
+                            className={cn('flex-shrink-0 flex items-center justify-center border-r relative',
+                              today ? 'border-indigo-400' : weekend ? 'border-gray-100 dark:border-neutral-800' : 'border-gray-50 dark:border-neutral-800/50',
+                              weekend && !hasWork && 'bg-gray-100/50 dark:bg-neutral-800/30')}
+                            style={{ width: DAY_W, height: 36 }}>
+                            {today && <div className="absolute inset-0 bg-indigo-50/50 dark:bg-indigo-950/10" />}
+                            {hasWork && (
+                              <div className="relative flex flex-col items-center justify-center w-full h-full">
+                                {/* Bar fill based on hours (8h = full) */}
+                                <div className="absolute bottom-0 left-0.5 right-0.5 rounded-t-sm"
+                                  style={{
+                                    height: `${Math.min(100, (mins / 480) * 100)}%`,
+                                    backgroundColor: user.color || '#6366F1',
+                                    opacity: 0.25,
+                                  }} />
+                                <span className="relative text-[8px] font-bold z-10"
+                                  style={{ color: user.color || '#6366F1' }}>
+                                  {minsToTime(mins)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Detail table */}
+      {filtered.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-neutral-800">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Detalle de registros</h2>
+          </div>
+          <div className="divide-y divide-gray-50 dark:divide-neutral-800">
+            {filtered.map(entry => (
+              <div key={entry.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50/50 dark:hover:bg-neutral-800/20 group">
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                  style={{ backgroundColor: entry.user?.color || '#6366F1', fontSize: 9 }}>
+                  {getInitials(entry.user?.name || '')}
+                </div>
+                <div className="w-20 flex-shrink-0">
+                  <span className="text-xs text-gray-500">{toDateStr(entry.date)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-700 dark:text-gray-300 truncate">{entry.task?.name}</p>
+                  {entry.note && <p className="text-[10px] text-gray-400 truncate">{entry.note}</p>}
+                </div>
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-14 text-right flex-shrink-0">
+                  {formatTime(entry.hours, entry.minutes)}
+                </span>
+                {(entry.userId === currentUserId || isAdmin) && (
+                  <button onClick={() => handleDelete(entry.id)}
+                    className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition-all">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* By project */}
-      <div className="space-y-4">
-        {byProject.map(({ project, entries: pEntries, total }) => (
-          <div key={project?.id || 'sin'} className="card overflow-hidden">
-            {/* Project header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-neutral-800"
-              style={{ backgroundColor: project?.color ? `${project.color}12` : undefined }}>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: project?.color || '#6366F1' }} />
-                <span className="font-semibold text-sm text-gray-800 dark:text-white">{project?.name || 'Sin proyecto'}</span>
-                <span className="text-xs text-gray-400">{pEntries.length} registros</span>
-              </div>
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{minutesToTime(total)}</span>
-            </div>
-
-            {/* Entries table */}
-            <div className="divide-y divide-gray-50 dark:divide-neutral-800">
-              {pEntries.map(entry => (
-                <div key={entry.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/50 dark:hover:bg-neutral-800/20 group">
-                  <div className="w-20 flex-shrink-0">
-                    <span className="text-xs text-gray-500">{toDateStr(entry.date)}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{entry.task?.name}</p>
-                    {entry.note && <p className="text-xs text-gray-400 truncate mt-0.5">{entry.note}</p>}
-                  </div>
-                  {isAdmin && (
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0"
-                        style={{ backgroundColor: entry.user?.color || '#6366F1', fontSize: 9 }}>
-                        {getInitials(entry.user?.name || '')}
-                      </div>
-                      <span className="text-xs text-gray-400">{entry.user?.name?.split(' ')[0]}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-16 text-right">
-                      {formatTime(entry.hours, entry.minutes)}
-                    </span>
-                    {(entry.userId === currentUserId || isAdmin) && (
-                      <button onClick={() => handleDelete(entry.id)}
-                        className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition-all">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {filtered.length === 0 && (
-          <div className="py-16 text-center">
-            <Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No hay registros de tiempo para este período</p>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
