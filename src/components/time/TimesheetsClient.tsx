@@ -1,8 +1,8 @@
 'use client'
 // src/components/time/TimesheetsClient.tsx
 import { useState, useMemo } from 'react'
-import { Clock, Download, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { eachDayOfInterval, format, isWeekend, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns'
+import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder } from 'lucide-react'
+import { eachDayOfInterval, format, isWeekend, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getInitials } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -13,7 +13,6 @@ interface TimesheetsClientProps {
   users: any[]
   isAdmin: boolean
   currentUserId: string
-  currentUserName?: string
   currentUserColor?: string
 }
 
@@ -40,8 +39,10 @@ function minsToTime(m: number) {
   return formatTime(Math.floor(m / 60), m % 60)
 }
 
-const DAY_W = 32 // px per day cell
-const LABEL_W = 200
+const DAY_W = 32
+const LABEL_W = 210
+
+type GroupMode = 'user' | 'project'
 
 function DayCell({ date }: { date: Date }) {
   const weekend = isWeekend(date)
@@ -49,10 +50,48 @@ function DayCell({ date }: { date: Date }) {
   const letter = format(date, 'EEEEE', { locale: es }).toUpperCase()
   return (
     <div className={cn('flex-shrink-0 flex flex-col items-center justify-center border-r text-[9px]',
-      today ? 'border-indigo-400 text-white' : weekend ? 'border-gray-100 dark:border-neutral-800 text-gray-400' : 'border-gray-50 dark:border-neutral-800/50 text-gray-400 dark:text-gray-600')}
-      style={{ width: DAY_W, backgroundColor: today ? '#6366F1' : weekend ? undefined : undefined }}>
+      today ? 'border-indigo-400 text-white' : weekend
+        ? 'border-gray-100 dark:border-neutral-800 text-gray-400'
+        : 'border-gray-50 dark:border-neutral-800/50 text-gray-400 dark:text-gray-600')}
+      style={{ width: DAY_W, backgroundColor: today ? '#6366F1' : undefined }}>
       <span className="font-bold leading-none">{letter}</span>
       <span className="font-medium">{format(date, 'd')}</span>
+    </div>
+  )
+}
+
+function WorkCell({ mins, color, date }: { mins: number; color: string; date: Date }) {
+  const weekend = isWeekend(date)
+  const today = isSameDay(date, new Date())
+  return (
+    <div className={cn('flex-shrink-0 flex items-center justify-center border-r relative',
+      today ? 'border-indigo-400' : weekend ? 'border-gray-100 dark:border-neutral-800' : 'border-gray-50 dark:border-neutral-800/50',
+      weekend && mins === 0 && 'bg-gray-100/50 dark:bg-neutral-800/30')}
+      style={{ width: DAY_W, height: 36 }}>
+      {today && <div className="absolute inset-0 bg-indigo-50/50 dark:bg-indigo-950/10" />}
+      {mins > 0 && (
+        <div className="relative flex flex-col items-center justify-center w-full h-full">
+          <div className="absolute bottom-0 left-0.5 right-0.5 rounded-t-sm"
+            style={{ height: `${Math.min(100, (mins / 480) * 100)}%`, backgroundColor: color, opacity: 0.25 }} />
+          <span className="relative text-[8px] font-bold z-10" style={{ color }}>
+            {minsToTime(mins)}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SummaryCell({ mins, color, date }: { mins: number; color: string; date: Date }) {
+  const weekend = isWeekend(date)
+  const today = isSameDay(date, new Date())
+  return (
+    <div className={cn('flex-shrink-0 flex items-center justify-center border-r text-[9px] font-medium',
+      today ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20' :
+      weekend ? 'border-gray-100 dark:border-neutral-800 bg-gray-100/50 dark:bg-neutral-800/30' :
+      'border-gray-50 dark:border-neutral-800/50')}
+      style={{ width: DAY_W, height: 32 }}>
+      {mins > 0 && <span className="font-bold" style={{ color }}>{minsToTime(mins)}</span>}
     </div>
   )
 }
@@ -61,47 +100,29 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
   const [entries, setEntries] = useState(initialEntries)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [projectFilter, setProjectFilter] = useState('ALL')
+  const [userFilter, setUserFilter] = useState('ALL')
+  const [groupMode, setGroupMode] = useState<GroupMode>('project')
 
-  // Range: full current month by default
   const rangeStart = startOfMonth(currentMonth)
   const rangeEnd = endOfMonth(currentMonth)
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
 
-  const months = useMemo(() => {
-    const result: { label: string; days: Date[] }[] = []
-    let cm = ''; let cd: Date[] = []
-    days.forEach(day => {
-      const ml = format(day, 'MMMM yyyy', { locale: es })
-      if (ml !== cm) { if (cd.length) result.push({ label: cm, days: cd }); cm = ml; cd = [] }
-      cd.push(day)
-    })
-    if (cd.length) result.push({ label: cm, days: cd })
-    return result
-  }, [days])
-
-  // Filter entries by month and project
   const filtered = useMemo(() => entries.filter(e => {
     const ds = toDateStr(e.date)
-    const monthStr = format(currentMonth, 'yyyy-MM')
-    if (!ds.startsWith(monthStr)) return false
+    if (!ds.startsWith(format(currentMonth, 'yyyy-MM'))) return false
     if (projectFilter !== 'ALL' && e.task?.project?.id !== projectFilter) return false
+    if (userFilter !== 'ALL' && e.userId !== userFilter) return false
     return true
-  }), [entries, currentMonth, projectFilter])
+  }), [entries, currentMonth, projectFilter, userFilter])
 
-  // Group entries by user → task
+  // ── GROUPED BY USER ──
   const groupedByUser = useMemo(() => {
-    // Build user list: admin first, then others
     const allUsers = isAdmin
-      ? [
-          // current user (admin) first
-          ...(users.filter(u => u.id === currentUserId)),
-          ...(users.filter(u => u.id !== currentUserId)),
-        ]
+      ? [...users.filter(u => u.id === currentUserId), ...users.filter(u => u.id !== currentUserId)]
       : users.filter(u => u.id === currentUserId)
 
     return allUsers.map(user => {
       const userEntries = filtered.filter(e => e.userId === user.id)
-      // Group by task
       const taskMap: Record<string, { task: any; entries: any[] }> = {}
       userEntries.forEach(e => {
         const tid = e.task?.id || 'unknown'
@@ -109,13 +130,26 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
         taskMap[tid].entries.push(e)
       })
       return { user, tasks: Object.values(taskMap), total: totalMins(userEntries) }
-    }).filter(u => u.tasks.length > 0 || u.user.id === currentUserId)
+    }).filter(u => u.tasks.length > 0)
   }, [filtered, users, currentUserId, isAdmin])
 
-  // Get entries for a specific day and task
-  function getDayEntries(taskEntries: any[], date: Date) {
-    return taskEntries.filter(e => toDateStr(e.date) === toDateStr(date))
-  }
+  // ── GROUPED BY PROJECT ──
+  const groupedByProject = useMemo(() => {
+    const projMap: Record<string, { project: any; tasks: Record<string, { task: any; userEntries: Record<string, { user: any; entries: any[] }> }> }> = {}
+    filtered.forEach(e => {
+      const pid = e.task?.project?.id || 'sin-proyecto'
+      if (!projMap[pid]) projMap[pid] = { project: e.task?.project, tasks: {} }
+      const tid = e.task?.id || 'unknown'
+      if (!projMap[pid].tasks[tid]) projMap[pid].tasks[tid] = { task: e.task, userEntries: {} }
+      const uid = e.userId
+      if (!projMap[pid].tasks[tid].userEntries[uid]) projMap[pid].tasks[tid].userEntries[uid] = { user: e.user, entries: [] }
+      projMap[pid].tasks[tid].userEntries[uid].entries.push(e)
+    })
+    return Object.values(projMap).sort((a, b) =>
+      (b.project?.name || '').localeCompare(a.project?.name || ''))
+  }, [filtered])
+
+  const grandTotal = totalMins(filtered)
 
   async function handleDelete(id: string) {
     if (!confirm('¿Eliminar este registro?')) return
@@ -152,7 +186,18 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
     } catch { toast.dismiss(tid); toast.error('Error') }
   }
 
-  const grandTotal = totalMins(filtered)
+  const TimelineHeader = () => (
+    <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
+      <div className="flex-shrink-0 border-r border-gray-100 dark:border-neutral-800 px-3 py-1.5" style={{ width: LABEL_W }}>
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+          {format(currentMonth, 'MMMM yyyy', { locale: es }).toUpperCase()}
+        </span>
+      </div>
+      <div className="flex">
+        {days.map(day => <DayCell key={day.toISOString()} date={day} />)}
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -164,15 +209,29 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
             Total: <span className="font-semibold text-gray-800 dark:text-white">{minsToTime(grandTotal)}</span>
           </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" /> PDF
-          </button>
-        </div>
+        <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
+          <Download className="w-4 h-4" /> PDF
+        </button>
       </div>
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Group mode toggle — solo para admin */}
+        {isAdmin && (
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
+            <button onClick={() => setGroupMode('project')}
+              className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
+                groupMode === 'project' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              <Folder className="w-3 h-3" /> Por proyecto
+            </button>
+            <button onClick={() => setGroupMode('user')}
+              className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
+                groupMode === 'user' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              <Users className="w-3 h-3" /> Por usuario
+            </button>
+          </div>
+        )}
+
         {/* Month nav */}
         <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
           <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
@@ -188,115 +247,146 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
           </button>
         </div>
 
+        {/* Filters */}
+        {isAdmin && (
+          <select value={userFilter} onChange={e => setUserFilter(e.target.value)} className="input w-44">
+            <option value="ALL">Todos los usuarios</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        )}
         <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="input w-48">
           <option value="ALL">Todos los proyectos</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
 
-      {/* Gantt de tiempos */}
+      {/* Gantt */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <div style={{ minWidth: days.length * DAY_W + LABEL_W }}>
+            <TimelineHeader />
 
-            {/* Header */}
-            <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
-              <div className="flex-shrink-0 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
-                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                  {format(currentMonth, 'MMMM yyyy', { locale: es }).toUpperCase()}
-                </div>
-              </div>
-              <div className="flex">
-                {days.map(day => <DayCell key={day.toISOString()} date={day} />)}
-              </div>
-            </div>
-
-            {/* Users */}
-            {groupedByUser.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="py-16 text-center">
                 <Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                 <p className="text-gray-500 text-sm">No hay registros para este período</p>
               </div>
-            ) : groupedByUser.map(({ user, tasks, total }) => (
-              <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
-                {/* User header row */}
-                <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
-                  <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                        style={{ backgroundColor: user.color || '#6366F1' }}>
-                        {getInitials(user.name)}
+
+            ) : groupMode === 'user' ? (
+              /* ── VISTA POR USUARIO ── */
+              groupedByUser.map(({ user, tasks, total }) => (
+                <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
+                  {/* User header */}
+                  <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
+                    <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                          style={{ backgroundColor: user.color || '#6366F1' }}>
+                          {getInitials(user.name)}
+                        </div>
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{user.name}</span>
                       </div>
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{user.name}</span>
+                      <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 ml-1 flex-shrink-0">{minsToTime(total)}</span>
                     </div>
-                    <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 flex-shrink-0 ml-1">{minsToTime(total)}</span>
+                    <div className="flex">
+                      {days.map(day => {
+                        const mins = totalMins(filtered.filter(e => e.userId === user.id && toDateStr(e.date) === toDateStr(day)))
+                        return <SummaryCell key={day.toISOString()} mins={mins} color={user.color || '#6366F1'} date={day} />
+                      })}
+                    </div>
                   </div>
-                  {/* Day totals row for user */}
-                  <div className="flex">
-                    {days.map(day => {
-                      const dayEntries = filtered.filter(e => e.userId === user.id && toDateStr(e.date) === toDateStr(day))
-                      const mins = totalMins(dayEntries)
-                      const weekend = isWeekend(day)
-                      const today = isSameDay(day, new Date())
+                  {/* Task rows */}
+                  {tasks.map(({ task, entries: te }) => (
+                    <div key={task?.id} className="flex items-center hover:bg-gray-50/30 dark:hover:bg-neutral-800/10 transition-colors">
+                      <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800 pl-8" style={{ width: LABEL_W }}>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{task?.name}</p>
+                        <p className="text-[10px] text-gray-400 truncate">{task?.project?.name}</p>
+                      </div>
+                      <div className="flex">
+                        {days.map(day => {
+                          const mins = totalMins(te.filter((e: any) => toDateStr(e.date) === toDateStr(day)))
+                          return <WorkCell key={day.toISOString()} mins={mins} color={user.color || '#6366F1'} date={day} />
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))
+
+            ) : (
+              /* ── VISTA POR PROYECTO ── */
+              groupedByProject.map(({ project, tasks }) => {
+                const projTotal = totalMins(filtered.filter(e => e.task?.project?.id === project?.id))
+                const projColor = project?.color || '#6366F1'
+                return (
+                  <div key={project?.id || 'sin'} className="border-b border-gray-50 dark:border-neutral-800">
+                    {/* Project header */}
+                    <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50"
+                      style={{ backgroundColor: `${projColor}10` }}>
+                      <div className="flex-shrink-0 px-3 py-2.5 flex items-center justify-between border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: projColor }} />
+                          <span className="text-xs font-bold text-gray-800 dark:text-white truncate">{project?.name || 'Sin proyecto'}</span>
+                        </div>
+                        <span className="text-xs font-semibold ml-1 flex-shrink-0" style={{ color: projColor }}>{minsToTime(projTotal)}</span>
+                      </div>
+                      <div className="flex">
+                        {days.map(day => {
+                          const mins = totalMins(filtered.filter(e => e.task?.project?.id === project?.id && toDateStr(e.date) === toDateStr(day)))
+                          return <SummaryCell key={day.toISOString()} mins={mins} color={projColor} date={day} />
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Tasks within project */}
+                    {Object.values(tasks).map(({ task, userEntries }) => {
+                      const taskTotal = totalMins(Object.values(userEntries).flatMap((u: any) => u.entries))
                       return (
-                        <div key={day.toISOString()}
-                          className={cn('flex-shrink-0 flex items-center justify-center border-r text-[9px] font-medium',
-                            today ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600' :
-                            weekend ? 'border-gray-100 dark:border-neutral-800 bg-gray-100/50 dark:bg-neutral-800/30 text-gray-400' :
-                            'border-gray-50 dark:border-neutral-800/50 text-gray-400')}
-                          style={{ width: DAY_W, height: 32 }}>
-                          {mins > 0 ? <span className="text-brand-600 dark:text-brand-400 font-bold">{minsToTime(mins)}</span> : null}
+                        <div key={task?.id}>
+                          {/* Task row */}
+                          <div className="flex items-center bg-gray-50/30 dark:bg-neutral-800/10 border-b border-gray-50 dark:border-neutral-800/30">
+                            <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800 pl-6" style={{ width: LABEL_W }}>
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{task?.name}</p>
+                                <span className="text-[10px] text-gray-400 ml-1 flex-shrink-0">{minsToTime(taskTotal)}</span>
+                              </div>
+                            </div>
+                            <div className="flex">
+                              {days.map(day => {
+                                const allUserEntries = Object.values(userEntries).flatMap((u: any) => u.entries)
+                                const mins = totalMins(allUserEntries.filter((e: any) => toDateStr(e.date) === toDateStr(day)))
+                                return <SummaryCell key={day.toISOString()} mins={mins} color={projColor} date={day} />
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Per-user rows within task */}
+                          {Object.values(userEntries).map(({ user, entries: ue }: any) => (
+                            <div key={user.id} className="flex items-center hover:bg-gray-50/20 transition-colors">
+                              <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800 pl-10" style={{ width: LABEL_W }}>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-4 h-4 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                                    style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
+                                    {getInitials(user.name).charAt(0)}
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{user.name.split(' ')[0]}</span>
+                                </div>
+                              </div>
+                              <div className="flex">
+                                {days.map(day => {
+                                  const mins = totalMins(ue.filter((e: any) => toDateStr(e.date) === toDateStr(day)))
+                                  return <WorkCell key={day.toISOString()} mins={mins} color={user.color || '#6366F1'} date={day} />
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )
                     })}
                   </div>
-                </div>
-
-                {/* Task rows */}
-                {tasks.map(({ task, entries: taskEntries }) => (
-                  <div key={task?.id} className="flex items-center hover:bg-gray-50/30 dark:hover:bg-neutral-800/10 transition-colors group">
-                    <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800 pl-8" style={{ width: LABEL_W }}>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{task?.name}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{task?.project?.name}</p>
-                    </div>
-                    <div className="flex">
-                      {days.map(day => {
-                        const dayEntries = getDayEntries(taskEntries, day)
-                        const mins = totalMins(dayEntries)
-                        const weekend = isWeekend(day)
-                        const today = isSameDay(day, new Date())
-                        const hasWork = mins > 0
-
-                        return (
-                          <div key={day.toISOString()}
-                            className={cn('flex-shrink-0 flex items-center justify-center border-r relative',
-                              today ? 'border-indigo-400' : weekend ? 'border-gray-100 dark:border-neutral-800' : 'border-gray-50 dark:border-neutral-800/50',
-                              weekend && !hasWork && 'bg-gray-100/50 dark:bg-neutral-800/30')}
-                            style={{ width: DAY_W, height: 36 }}>
-                            {today && <div className="absolute inset-0 bg-indigo-50/50 dark:bg-indigo-950/10" />}
-                            {hasWork && (
-                              <div className="relative flex flex-col items-center justify-center w-full h-full">
-                                {/* Bar fill based on hours (8h = full) */}
-                                <div className="absolute bottom-0 left-0.5 right-0.5 rounded-t-sm"
-                                  style={{
-                                    height: `${Math.min(100, (mins / 480) * 100)}%`,
-                                    backgroundColor: user.color || '#6366F1',
-                                    opacity: 0.25,
-                                  }} />
-                                <span className="relative text-[8px] font-bold z-10"
-                                  style={{ color: user.color || '#6366F1' }}>
-                                  {minsToTime(mins)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
+                )
+              })
+            )}
           </div>
         </div>
       </div>
@@ -308,7 +398,7 @@ export default function TimesheetsClient({ entries: initialEntries, projects, us
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Detalle de registros</h2>
           </div>
           <div className="divide-y divide-gray-50 dark:divide-neutral-800">
-            {filtered.map(entry => (
+            {filtered.sort((a,b) => toDateStr(b.date).localeCompare(toDateStr(a.date))).map(entry => (
               <div key={entry.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50/50 dark:hover:bg-neutral-800/20 group">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0"
                   style={{ backgroundColor: entry.user?.color || '#6366F1', fontSize: 9 }}>
