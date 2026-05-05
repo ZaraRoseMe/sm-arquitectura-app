@@ -465,7 +465,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                       <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
                       <span className="text-xs font-bold text-gray-800 dark:text-white">{project.name}</span>
                       <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{pt.length} tareas</span>
-                      <span className="text-[9px] text-red-500 ml-1">{String(project.endDate).substring(0,10)}</span>
                     </div>
                     <div className="flex-1 h-11 relative" style={{ minWidth: days.length * cellWidth }}>
                       {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/50" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
