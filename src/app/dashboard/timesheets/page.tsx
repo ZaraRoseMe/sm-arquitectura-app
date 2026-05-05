@@ -22,7 +22,7 @@ export default async function TimesheetsPage() {
     prisma.project.findMany({ orderBy: { name: 'asc' } }),
     isAdmin
       ? prisma.user.findMany({ select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } })
-      : Promise.resolve([]),
+      : prisma.user.findMany({ where: { id: session.user.id }, select: { id: true, name: true, color: true } }),
   ])
 
   return (
@@ -32,6 +32,7 @@ export default async function TimesheetsPage() {
       users={users}
       isAdmin={isAdmin}
       currentUserId={session.user.id}
+      currentUserColor={(session.user as any).color}
     />
   )
 }
