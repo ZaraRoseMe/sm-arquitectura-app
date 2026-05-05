@@ -36,6 +36,7 @@ model User {
   notifications      Notification[]
   pauseLogs          PauseLog[]
   timeEntries        TimeEntry[]
+  workPlans          WorkPlan[]
   sentMessages       Message[]  @relation("SentMessages")
   receivedMessages   Message[]  @relation("ReceivedMessages")
 
@@ -72,6 +73,7 @@ model Task {
   pauseLogs     PauseLog[]
   notifications Notification[]
   timeEntries   TimeEntry[]
+  workPlans     WorkPlan[]
   @@map("tasks")
 }
 
@@ -87,6 +89,22 @@ model TimeEntry {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   @@map("time_entries")
+}
+
+// Tiempo programado por el admin para un usuario en una tarea
+model WorkPlan {
+  id        String   @id @default(cuid())
+  date      DateTime
+  hours     Int      @default(0)
+  minutes   Int      @default(0)
+  note      String?
+  createdAt DateTime @default(now())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdBy String   // id del admin que lo programó
+  @@map("work_plans")
 }
 
 model PauseLog {
