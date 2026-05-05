@@ -23,15 +23,33 @@ const colaboradorLinks = [
 ]
 
 function KronozMark({ size = 32 }: { size?: number }) {
+  const cx = size / 2, cy = size / 2
+  const outerR = size * 0.44
+  const innerR = size * 0.26
+  const angles = [90, 30, 330, 270, 210, 150]
+
+  function pt(r: number, i: number) {
+    const a = (angles[i] * Math.PI) / 180
+    return { x: cx + r * Math.cos(a), y: cy - r * Math.sin(a) }
+  }
+
+  const outerPts = Array.from({ length: 6 }, (_, i) => pt(outerR, i))
+  const innerPts = Array.from({ length: 6 }, (_, i) => pt(innerR, i))
+
+  const outerPoly = outerPts.map(p => `${p.x},${p.y}`).join(' ')
+  const innerPoly = innerPts.map(p => `${p.x},${p.y}`).join(' ')
+
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <polygon points="16,2 26,8 26,20 16,26 6,20 6,8" stroke="#6366F1" strokeWidth="1.5" fill="none"/>
-      <polygon points="16,7 21,10 21,16 16,19 11,16 11,10" stroke="#A5B4FC" strokeWidth="0.8" fill="none"/>
-      <rect x="13" y="8" width="2" height="14" fill="#6366F1" rx="0.5"/>
-      <polygon points="15,15 21,8 23.5,8 17.5,15" fill="#6366F1"/>
-      <polygon points="15,16 21,22 23.5,22 17.5,16" fill="#6366F1"/>
-      <circle cx="16" cy="0.5" r="1.2" fill="#6366F1"/>
-      <circle cx="16" cy="29.5" r="1.2" fill="#A5B4FC"/>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none">
+      <polygon points={outerPoly} stroke="#6366F1" strokeWidth="0.9" fill="none"/>
+      <polygon points={innerPoly} stroke="#A5B4FC" strokeWidth="0.6" fill="none"/>
+      {innerPts.map((p, i) => (
+        <line key={i} x1={p.x} y1={p.y} x2={cx} y2={cy} stroke="#A5B4FC" strokeWidth="0.6" strokeOpacity="0.7"/>
+      ))}
+      {innerPts.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={size * 0.055} fill="#A5B4FC"/>
+      ))}
+      <circle cx={cx} cy={cy} r={size * 0.08} fill="#6366F1"/>
     </svg>
   )
 }
@@ -54,8 +72,7 @@ export default function Sidebar({ role }: SidebarProps) {
             <div className="flex items-center gap-2.5 min-w-0">
               <KronozMark size={30} />
               <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900 dark:text-white leading-none tracking-tight">KRONOZ</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 tracking-wide">by ZR Nexus</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white leading-none tracking-widest">KRONOZ</p>
               </div>
             </div>
             <button onClick={toggleSidebar} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0">
