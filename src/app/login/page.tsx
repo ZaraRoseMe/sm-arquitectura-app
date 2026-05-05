@@ -260,7 +260,7 @@ export default function LoginPage() {
           }}>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="label">Usuario</label>
+                <label className="label" style={{ color: 'rgba(255,255,255,0.75)' }}>Usuario</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -275,7 +275,7 @@ export default function LoginPage() {
                 </div>
               </div>
               <div>
-                <label className="label">Contraseña</label>
+                <label className="label" style={{ color: 'rgba(255,255,255,0.75)' }}>Contraseña</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
