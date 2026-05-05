@@ -1,7 +1,7 @@
 'use client'
 // src/components/time/TimesheetsClient.tsx
 import { useState, useMemo } from 'react'
-import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder, X, Check, CalendarDays, LayoutGrid } from 'lucide-react'
+import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder, X, Check, Calendar, Grid } from 'lucide-react'
 import { eachDayOfInterval, format, isWeekend, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getInitials } from '@/lib/utils'
@@ -483,12 +483,12 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
             <button onClick={() => setViewMode('weekly')}
               className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
                 viewMode === 'weekly' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-              <CalendarDays className="w-3 h-3" /> Semana
+              <Calendar className="w-3 h-3" /> Semana
             </button>
             <button onClick={() => setViewMode('monthly')}
               className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
                 viewMode === 'monthly' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-              <LayoutGrid className="w-3 h-3" /> Mes
+              <Grid className="w-3 h-3" /> Mes
             </button>
           </div>
           <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
