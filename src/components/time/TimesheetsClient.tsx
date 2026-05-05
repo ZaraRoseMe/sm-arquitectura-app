@@ -364,11 +364,16 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   }
 
   function handleSavedQuickEntry(entry: any) {
-    // Añadir la nueva entry al estado (o reemplazar si ya existía en ese día/tarea)
     setEntries(prev => {
       const ds = toDateStr(entry.date)
-      // Quitar duplicados del mismo día+tarea+usuario (por si se guardó antes)
-      const filtered = prev.filter(e => !(toDateStr(e.date) === ds && e.task?.id === entry.task?.id && e.userId === entry.userId))
+      const taskId = entry.taskId || entry.task?.id
+      // Quitar cualquier entry del mismo día + tarea + usuario
+      const filtered = prev.filter(e => {
+        const sameDay = toDateStr(e.date) === ds
+        const sameTask = (e.taskId || e.task?.id) === taskId
+        const sameUser = e.userId === entry.userId
+        return !(sameDay && sameTask && sameUser)
+      })
       return [...filtered, entry]
     })
     setQuickEntry(null)
