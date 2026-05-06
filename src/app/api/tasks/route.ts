@@ -8,21 +8,25 @@ import { es } from 'date-fns/locale'
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const isAdmin = session.user.role === 'ADMIN'
-
   const tasks = await prisma.task.findMany({
     where: isAdmin ? {} : { userId: session.user.id },
     include: { project: true, user: true, pauseLogs: true },
     orderBy: { updatedAt: 'desc' },
   })
-
   return NextResponse.json(tasks)
 }
 
 export async function POST(req: NextRequest) {
   const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const role = session.user.role
+  const isAdmin = role === 'ADMIN'
+  const isCoordinador = role === 'COORDINADOR'
+
+  // Solo ADMIN y COORDINADOR pueden crear tareas
+  if (!isAdmin && !isCoordinador) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
@@ -31,6 +35,21 @@ export async function POST(req: NextRequest) {
 
   if (!name || !startDate || !endDate || !projectId || !userId) {
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
+  }
+
+  // COORDINADOR solo puede asignar tareas a miembros de su equipo
+  if (isCoordinador) {
+    const team = await prisma.team.findUnique({
+      where: { coordinatorId: session.user.id },
+      include: { members: { select: { userId: true } } },
+    })
+    const teamMemberIds = [
+      session.user.id,
+      ...(team?.members.map(m => m.userId) || []),
+    ]
+    if (!teamMemberIds.includes(userId)) {
+      return NextResponse.json({ error: 'No puedes asignar tareas fuera de tu equipo' }, { status: 403 })
+    }
   }
 
   // Detectar conflictos solo si no se fuerza la creación
@@ -46,7 +65,6 @@ export async function POST(req: NextRequest) {
       },
       include: { project: true },
     })
-
     if (conflicts.length > 0) {
       return NextResponse.json({ conflicts }, { status: 409 })
     }
@@ -71,7 +89,6 @@ export async function POST(req: NextRequest) {
     const days = differenceInCalendarDays(new Date(endDate), new Date(startDate)) + 1
     const startFmt = format(new Date(startDate), "dd 'de' MMMM", { locale: es })
     const endFmt = format(new Date(endDate), "dd 'de' MMMM", { locale: es })
-
     await prisma.notification.create({
       data: {
         userId,
