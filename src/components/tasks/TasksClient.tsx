@@ -13,7 +13,7 @@ type StatusFilter = 'ALL' | 'PENDIENTE' | 'EN_PROGRESO' | 'PAUSADO' | 'TERMINADO
 
 interface TasksClientProps {
   tasks: Task[]
-  projects: Project[]
+  projects: any[]  // árbol con children anidados
   users: User[]
   isAdmin: boolean
   isCoordinador: boolean
