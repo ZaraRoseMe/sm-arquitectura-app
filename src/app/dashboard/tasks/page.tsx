@@ -4,18 +4,21 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import TasksClient from '@/components/tasks/TasksClient'
 
-const childrenInclude: any = {
-  orderBy: { name: 'asc' },
-  include: {
-    children: {
-      orderBy: { name: 'asc' },
-      include: {
-        children: {
-          orderBy: { name: 'asc' },
-          include: {
-            children: {
-              orderBy: { name: 'asc' },
-              include: { children: true },
+// Children anidados — igual que el original pero sin tasks/team (no los necesita TasksClient aquí)
+const childrenInclude = {
+  children: {
+    orderBy: { name: 'asc' as const },
+    include: {
+      children: {
+        orderBy: { name: 'asc' as const },
+        include: {
+          children: {
+            orderBy: { name: 'asc' as const },
+            include: {
+              children: {
+                orderBy: { name: 'asc' as const },
+                include: { children: true },
+              },
             },
           },
         },
@@ -25,7 +28,6 @@ const childrenInclude: any = {
 }
 
 async function getCoordinadorProjects(teamId: string) {
-  // 1. Todos los proyectos asignados al equipo (cualquier nivel)
   const assignedProjects = await prisma.project.findMany({
     where: { teamId },
     select: { id: true, parentId: true },
@@ -33,7 +35,6 @@ async function getCoordinadorProjects(teamId: string) {
 
   if (assignedProjects.length === 0) return []
 
-  // 2. Subir hasta la raíz de cada uno
   const rootIds = new Set<string>()
 
   for (const p of assignedProjects) {
@@ -53,7 +54,6 @@ async function getCoordinadorProjects(teamId: string) {
 
   if (rootIds.size === 0) return []
 
-  // 3. Traer raíces con children anidados
   return prisma.project.findMany({
     where: { id: { in: Array.from(rootIds) } },
     orderBy: { name: 'asc' },
@@ -70,7 +70,6 @@ export default async function TasksPage() {
   const isCoordinador = role === 'COORDINADOR'
   const isColaborador = role === 'COLABORADOR'
 
-  // Equipo del coordinador
   let teamMemberIds: string[] = []
   let teamId: string | null = null
 
@@ -83,7 +82,6 @@ export default async function TasksPage() {
     teamId = team?.id || null
   }
 
-  // Proyectos — resuelto antes del Promise.all para evitar async IIFE dentro
   const projects = isCoordinador && teamId
     ? await getCoordinadorProjects(teamId)
     : await prisma.project.findMany({
