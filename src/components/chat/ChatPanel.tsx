@@ -51,6 +51,7 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const messagesEndRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const initialScrollDone = useRef<Record<string, boolean>>({})
 
   const otherUsers = users.filter(u => u.id !== currentUserId)
   const totalUnread = Object.values(dmUnread).reduce((a, b) => a + b, 0) + groupUnread
@@ -103,16 +104,26 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
         return data
       })
       const groupWin = chatWindows.find(w => w.type === 'group')
-      if (groupWin?.minimized && data.length > 0 && lastGroupMsgId) {
-        const idx = data.findIndex(m => m.id === lastGroupMsgId)
-        const newMsgs = idx >= 0 ? data.slice(idx + 1).filter(m => m.senderId !== currentUserId) : []
-        if (newMsgs.length > 0) {
-          setGroupUnread(newMsgs.length)
-          setChatWindowUnread(team.id, newMsgs.length, newMsgs[newMsgs.length-1].sender?.name)
-        }
+      if (data.length > 0) {
+        setLastGroupMsgId(prev => {
+          if (!prev) {
+            return data[data.length - 1].id
+          }
+          const idx = data.findIndex(m => m.id === prev)
+          const newMsgs = idx >= 0 ? data.slice(idx + 1).filter(m => m.senderId !== currentUserId) : []
+          if (newMsgs.length > 0) {
+            // Siempre actualizar groupUnread para el badge en la barra
+            setGroupUnread(n => n + newMsgs.length)
+            // Si la ventana existe y está minimizada, actualizar su badge también
+            if (groupWin?.minimized) {
+              setChatWindowUnread(team.id, newMsgs.length, newMsgs[newMsgs.length - 1].sender?.name)
+            }
+          }
+          return prev
+        })
       }
     }
-  }, [team, chatWindows, lastGroupMsgId, currentUserId, setChatWindowUnread, playChatSound])
+  }, [team, chatWindows, currentUserId, setChatWindowUnread, playChatSound])
 
   useEffect(() => {
     fetchUnread()
@@ -137,9 +148,21 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
 
   useEffect(() => {
     Object.keys(messagesEndRefs.current).forEach(id => {
-      messagesEndRefs.current[id]?.scrollIntoView({ behavior: 'smooth' })
+      const el = messagesEndRefs.current[id]
+      if (!el) return
+      const behavior = initialScrollDone.current[id] ? 'smooth' : 'instant'
+      el.scrollIntoView({ behavior: behavior as ScrollBehavior })
+      initialScrollDone.current[id] = true
     })
   }, [messages, groupMessages])
+
+  // Focus automático al abrir/desminimizar ventana
+  useEffect(() => {
+    const openWindows = chatWindows.filter(w => !w.minimized)
+    openWindows.forEach(w => {
+      setTimeout(() => inputRefs.current[w.id]?.focus(), 80)
+    })
+  }, [chatWindows.filter(w => !w.minimized).map(w => w.id).join(',')])
 
   // ─── Abrir ventana ───────────────────────────────────────────────────────
   function openDM(user: User) {
