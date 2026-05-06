@@ -12,11 +12,12 @@ import ProjectModal from './ProjectModal'
 interface ProjectsClientProps {
   projects: Project[]
   users: User[]
+  teams: any[]
   isAdmin: boolean
   isCoordinador: boolean
 }
 
-export default function ProjectsClient({ projects: initialProjects, users, isAdmin, isCoordinador }: ProjectsClientProps) {
+export default function ProjectsClient({ projects: initialProjects, users, teams, isAdmin, isCoordinador }: ProjectsClientProps) {
   const [projects, setProjects] = useState(initialProjects)
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -201,6 +202,7 @@ export default function ProjectsClient({ projects: initialProjects, users, isAdm
       {showModal && (
         <ProjectModal
           project={editProject}
+          teams={teams}
           onClose={() => { setShowModal(false); setEditProject(null) }}
           onSaved={handleSaved}
         />
