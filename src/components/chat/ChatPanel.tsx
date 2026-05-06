@@ -34,7 +34,7 @@ interface ChatPanelProps {
 
 export default function ChatPanel({ currentUserId, users, team: initialTeam, userRole }: ChatPanelProps) {
   const {
-    chatWindows, openChatWindow, closeChatWindow,
+    chatWindows, openChatWindow, openMinimized, closeChatWindow,
     minimizeChatWindow, maximizeChatWindow,
     setChatWindowUnread, clearChatWindowUnread,
   } = useAppStore()
@@ -71,7 +71,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
       if (win.minimized) return
       const el = messagesEndRefs.current[win.id]
       if (!el) return
-      // Siempre instant — sin animación
       el.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
     })
   }, [messages, groupMessages, chatWindows.filter(w => !w.minimized).map(w => w.id).join(',')])
@@ -91,14 +90,28 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
       const map: Record<string, number> = {}
       data.forEach((d: any) => { map[d.senderId] = d._count.id })
       setDmUnread(map)
-      chatWindows.forEach(w => {
-        if (w.type === 'dm' && w.minimized && map[w.id] > 0) {
-          const sender = users.find(u => u.id === w.id)
-          setChatWindowUnread(w.id, map[w.id], sender?.name)
+
+      // Para cada remitente con mensajes no leídos:
+      // si no tiene ventana abierta → abrirla minimizada
+      // si ya tiene ventana minimizada → actualizar unread
+      data.forEach((d: any) => {
+        const sender = users.find(u => u.id === d.senderId)
+        if (!sender) return
+        const exists = useAppStore.getState().chatWindows.find(w => w.id === d.senderId)
+        if (!exists) {
+          // Crear pestaña minimizada
+          openMinimized({
+            id: sender.id,
+            type: 'dm',
+            label: sender.name,
+            color: sender.color || '#6366F1',
+          })
         }
+        // Actualizar badge (tanto si ya existía como si es nueva)
+        setChatWindowUnread(d.senderId, d._count.id, sender?.name)
       })
     }
-  }, [chatWindows, users, setChatWindowUnread])
+  }, [users, openMinimized, setChatWindowUnread])
 
   const fetchMessages = useCallback(async (userId: string) => {
     const res = await fetch(`/api/messages?with=${userId}`)
@@ -125,7 +138,7 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
         if (newMsgs.length > 0) playChatSound()
         return data
       })
-      const groupWin = chatWindows.find(w => w.type === 'group')
+      const groupWin = useAppStore.getState().chatWindows.find(w => w.type === 'group')
       if (data.length > 0) {
         setLastGroupMsgId(prev => {
           if (!prev) return data[data.length - 1].id
@@ -133,13 +146,22 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
           const newMsgs = idx >= 0 ? data.slice(idx + 1).filter(m => m.senderId !== currentUserId) : []
           if (newMsgs.length > 0) {
             setGroupUnread(n => n + newMsgs.length)
-            if (groupWin?.minimized) setChatWindowUnread(team.id, newMsgs.length, newMsgs[newMsgs.length - 1].sender?.name)
+            // Si no existe ventana de grupo → abrirla minimizada
+            if (!groupWin) {
+              openMinimized({
+                id: team.id,
+                type: 'group',
+                label: team.name,
+                color: team.coordinator?.color || '#F59E0B',
+              })
+            }
+            setChatWindowUnread(team.id, newMsgs.length, newMsgs[newMsgs.length - 1].sender?.name)
           }
           return prev
         })
       }
     }
-  }, [team, chatWindows, currentUserId, setChatWindowUnread, playChatSound])
+  }, [team, currentUserId, openMinimized, setChatWindowUnread, playChatSound])
 
   useEffect(() => { fetchUnread(); const i = setInterval(fetchUnread, 5000); return () => clearInterval(i) }, [fetchUnread])
   useEffect(() => { if (!team) return; fetchGroupMessages(); const i = setInterval(fetchGroupMessages, 3000); return () => clearInterval(i) }, [team])
@@ -214,7 +236,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
     if (res.ok) {
       const updated = await res.json()
       setTeam(prev => prev ? { ...prev, name: updated.name } : prev)
-      // Actualizar label en el store
       openChatWindow({ id: team.id, type: 'group', label: updated.name, color: team.coordinator?.color || '#F59E0B' })
       setEditingName(false)
     }
@@ -232,7 +253,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
     const isEmoji = showEmojis[win.id] || false
     const showInfo = showGroupInfo[win.id] || false
 
-    // Miembros del grupo para el panel de info
     const groupMembers = team ? [
       { id: team.coordinator.id, name: team.coordinator.name, color: team.coordinator.color, isCoord: true },
       ...(team.members || []).map(m => ({ ...m.user, isCoord: false })),
@@ -246,7 +266,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-t-2xl border-b border-gray-100 dark:border-neutral-800"
           style={{ backgroundColor: `${win.color}18` }}>
 
-          {/* Avatar + nombre — click para minimizar */}
           <div className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" onClick={() => handleToggleMinimize(win)}>
             <div className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
               style={{ backgroundColor: win.color, fontSize: 9 }}>
@@ -284,7 +303,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
             </span>
           )}
 
-          {/* Botón ··· solo en grupo y cuando está abierto */}
           {isGroup && !win.minimized && (
             <button
               onClick={e => { e.stopPropagation(); setShowGroupInfo(prev => ({ ...prev, [win.id]: !prev[win.id] })) }}
@@ -306,7 +324,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
 
         {!win.minimized && (
           <>
-            {/* Panel de info del grupo */}
             {isGroup && showInfo && (
               <div className="border-b border-gray-100 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-800/20 px-3 py-2.5 space-y-2">
                 <div className="flex items-center justify-between">
@@ -334,7 +351,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
               </div>
             )}
 
-            {/* Mensajes */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {msgs.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-6">
