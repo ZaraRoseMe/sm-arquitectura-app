@@ -1,7 +1,7 @@
 'use client'
 // src/components/gantt/GanttClient.tsx
 import { useState, useMemo } from 'react'
-import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X } from 'lucide-react'
+import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X, FileSpreadsheet } from 'lucide-react'
 import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getStatusLabel, getInitials, detectConflicts, parseDate } from '@/lib/utils'
@@ -55,7 +55,6 @@ function DayCell({ day, cellWidth }: { day: Date; cellWidth: number }) {
   )
 }
 
-// Task detail popup
 function TaskDetailPopup({ task, users, projects, onClose }: { task: Task; users: any[]; projects: any[]; onClose: () => void }) {
   const user = users.find(u => u.id === task.userId)
   const project = projects.find(p => p.id === task.projectId)
@@ -134,7 +133,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const rangeStart = new Date(rangeStartRaw.getFullYear(), rangeStartRaw.getMonth(), rangeStartRaw.getDate(), 0, 0, 0, 0)
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
-  // Use rangeStart as the base for all position calculations
   const effectiveRangeStart = rangeStart
 
   const months = useMemo(() => {
@@ -203,16 +201,13 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   }
 
   function getProjectBar(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
-    // Use project dates directly — independent of tasks
     if (!project.startDate || !project.endDate) return null
-    // Force string parsing: take only YYYY-MM-DD and build local date
     const sd = String(project.startDate).substring(0, 10)
     const ed = String(project.endDate).substring(0, 10)
     const [sy, sm, sday] = sd.split('-').map(Number)
     const [ey, em, eday] = ed.split('-').map(Number)
     const startDate = new Date(sy, sm - 1, sday, 0, 0, 0, 0)
     const endDate = new Date(ey, em - 1, eday, 0, 0, 0, 0)
-    // Clamp start to rangeStart so bar doesn't overflow left edge
     const clampedStart = startDate < rangeStart ? rangeStart : startDate
     const left = Math.max(0, differenceInDays(clampedStart, rangeStart) * cellWidth)
     const width = Math.max(cellWidth * 2, (differenceInDays(endDate, clampedStart) + 1) * cellWidth)
@@ -222,8 +217,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   }
 
   const todayOffset = differenceInDays(today, effectiveRangeStart) * cellWidth
-
-  // Label column — wider to show full text
   const LABEL_W = 200
 
   const TimelineHeader = () => (
@@ -241,6 +234,166 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       </div>
     </div>
   )
+
+  // ─── Exportar Excel ────────────────────────────────────────────────────────
+  async function handleExportExcel() {
+    const tid = toast.loading('Generando Excel...')
+    try {
+      const ExcelJS = (await import('exceljs')).default
+      const wb = new ExcelJS.Workbook()
+      wb.creator = 'KRONOZ'
+      wb.created = new Date()
+
+      // ── Hoja 1: Tareas ──────────────────────────────────────────────────
+      const ws = wb.addWorksheet('Tareas')
+
+      // Título
+      ws.mergeCells('A1:G1')
+      const titleCell = ws.getCell('A1')
+      titleCell.value = `KRONOZ — Diagrama Gantt · ${format(new Date(), "MMMM yyyy", { locale: es })}`
+      titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      ws.getRow(1).height = 28
+
+      ws.addRow([]) // fila vacía
+
+      // Encabezados
+      const headers = ['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']
+      const headerRow = ws.addRow(headers)
+      headerRow.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'FF6366F1' } },
+        }
+      })
+      ws.getRow(3).height = 20
+
+      // Anchos de columna
+      ws.getColumn(1).width = 35
+      ws.getColumn(2).width = 25
+      ws.getColumn(3).width = 22
+      ws.getColumn(4).width = 14
+      ws.getColumn(5).width = 14
+      ws.getColumn(6).width = 16
+      ws.getColumn(7).width = 12
+
+      // Datos
+      filteredTasks.forEach((task, i) => {
+        const user = users.find(u => u.id === task.userId)
+        const project = projects.find(p => p.id === task.projectId)
+        const conflict = conflictIds.has(task.id)
+        const row = ws.addRow([
+          task.name,
+          (task as any).project?.name || project?.name || '',
+          (task as any).user?.name || user?.name || '',
+          format(new Date(task.startDate), 'dd/MM/yyyy'),
+          format(new Date(task.endDate), 'dd/MM/yyyy'),
+          getStatusLabel(task.status),
+          `${task.progress}%`,
+        ])
+        const isEven = i % 2 === 0
+        row.eachCell(cell => {
+          cell.fill = {
+            type: 'pattern', pattern: 'solid',
+            fgColor: { argb: conflict ? 'FFFFF8E1' : isEven ? 'FFF8F9FF' : 'FFFFFFFF' },
+          }
+          cell.alignment = { vertical: 'middle' }
+          cell.font = { size: 9 }
+        })
+        // Color del estado
+        const statusCell = row.getCell(6)
+        const statusColors: Record<string, string> = {
+          'Pendiente': 'FF9CA3AF',
+          'En progreso': 'FF3B82F6',
+          'Pausado': 'FFF59E0B',
+          'Terminado': 'FF10B981',
+        }
+        const sc = statusColors[getStatusLabel(task.status)]
+        if (sc) statusCell.font = { bold: true, color: { argb: sc }, size: 9 }
+        // Conflicto
+        if (conflict) row.getCell(1).font = { bold: true, color: { argb: 'FFF59E0B' }, size: 9 }
+        row.height = 18
+      })
+
+      // ── Hoja 2: Por usuario ─────────────────────────────────────────────
+      const ws2 = wb.addWorksheet('Por usuario')
+      ws2.mergeCells('A1:G1')
+      const t2 = ws2.getCell('A1')
+      t2.value = 'KRONOZ — Tareas por colaborador'
+      t2.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+      t2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
+      t2.alignment = { horizontal: 'center', vertical: 'middle' }
+      ws2.getRow(1).height = 28
+      ws2.addRow([])
+
+      ws2.getColumn(1).width = 22
+      ws2.getColumn(2).width = 35
+      ws2.getColumn(3).width = 25
+      ws2.getColumn(4).width = 14
+      ws2.getColumn(5).width = 14
+      ws2.getColumn(6).width = 16
+      ws2.getColumn(7).width = 12
+
+      const h2 = ws2.addRow(['Colaborador', 'Tarea', 'Proyecto', 'Inicio', 'Fin', 'Estado', 'Avance'])
+      h2.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      })
+      ws2.getRow(3).height = 20
+
+      groupedByUser.forEach(({ user, tasks: ut }) => {
+        // Fila de usuario
+        const uRow = ws2.addRow([user.name, `${ut.length} tarea${ut.length !== 1 ? 's' : ''}`, '', '', '', '', ''])
+        const rgb = hexToRgb(user.color || '#6366F1')
+        const argb = `FF${rgb.r.toString(16).padStart(2,'0')}${rgb.g.toString(16).padStart(2,'0')}${rgb.b.toString(16).padStart(2,'0')}`.toUpperCase()
+        uRow.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        })
+        uRow.height = 20
+
+        ut.forEach((task, i) => {
+          const project = projects.find(p => p.id === task.projectId)
+          const row = ws2.addRow([
+            '',
+            task.name,
+            (task as any).project?.name || project?.name || '',
+            format(new Date(task.startDate), 'dd/MM/yyyy'),
+            format(new Date(task.endDate), 'dd/MM/yyyy'),
+            getStatusLabel(task.status),
+            `${task.progress}%`,
+          ])
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }
+            cell.font = { size: 9 }
+            cell.alignment = { vertical: 'middle' }
+          })
+          row.height = 18
+        })
+      })
+
+      // Descargar
+      const buf = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `kronoz-gantt-${format(new Date(), 'yyyy-MM')}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      toast.dismiss(tid)
+      toast.success('Excel descargado')
+    } catch (err) {
+      console.error(err)
+      toast.dismiss(tid)
+      toast.error('Error al generar Excel')
+    }
+  }
 
   async function handleExportPDF() {
     const tid = toast.loading('Generando PDF...')
@@ -371,8 +524,12 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
             <span className="text-xs text-gray-500 px-1">{cellWidth}px</span>
             <button onClick={() => setDayWidth(Math.min(DAY_WIDTH_OPTIONS.length - 1, dayWidth + 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomIn className="w-3.5 h-3.5" /></button>
           </div>
+          {/* Botones de exportar */}
+          <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 text-sm text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20">
+            <FileSpreadsheet className="w-4 h-4" /> Excel
+          </button>
           <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" /> Exportar PDF
+            <Download className="w-4 h-4" /> PDF
           </button>
         </div>
       </div>
@@ -409,8 +566,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         <div className="overflow-x-auto">
           <div style={{ minWidth: days.length * cellWidth + LABEL_W }}>
             <TimelineHeader />
-
-            {/* VISTA POR USUARIO */}
             {groupMode === 'user' && groupedByUser.map(({ user, tasks: ut }) => (
               <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
                 <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
@@ -442,8 +597,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                         <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
                         <div className={cn('absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all', conflict && 'ring-2 ring-amber-400')}
                           style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 22, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
-                          onClick={() => setSelectedTask(task)}
-                          title="Clic para ver detalle">
+                          onClick={() => setSelectedTask(task)}>
                           <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
                           {cellWidth >= 28 && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
                         </div>
@@ -453,13 +607,10 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                 })}
               </div>
             ))}
-
-            {/* VISTA POR PROYECTO */}
             {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
               const projBar = getProjectBar(project, pt)
               return (
                 <div key={project.id} className="border-b border-gray-50 dark:border-neutral-800">
-                  {/* Project header with summary bar */}
                   <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50" style={{ backgroundColor: `${project.color}12` }}>
                     <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                       <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
@@ -477,8 +628,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                       )}
                     </div>
                   </div>
-
-                  {/* Task rows — thin with assignee */}
                   {pt.map((task) => {
                     const { left, width } = getPos(task)
                     const conflict = conflictIds.has(task.id)
@@ -506,8 +655,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                           <div
                             className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
                             style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
-                            onClick={() => setSelectedTask(task)}
-                            title={`${task.name} — clic para ver detalle`}>
+                            onClick={() => setSelectedTask(task)}>
                             <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
                             {cellWidth >= 28 && width > 40 && <span className="relative text-white text-[9px] font-medium px-1 truncate z-10 leading-none flex items-center h-full">{task.name}</span>}
                           </div>
@@ -518,7 +666,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                 </div>
               )
             })}
-
             {(groupMode === 'user' ? groupedByUser : groupedByProject).length === 0 && (
               <div className="py-16 text-center"><p className="text-gray-500 text-sm">No hay tareas para mostrar</p></div>
             )}
