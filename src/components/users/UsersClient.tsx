@@ -32,15 +32,16 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 // ─── Panel de gestión de equipo ───────────────────────────────────────────────
-function TeamPanel({ team, allColaboradores, onUpdated }: {
+function TeamPanel({ team, allUsers, onUpdated }: {
   team: any
-  allColaboradores: any[]
+  allUsers: any[]
   onUpdated: (teamId: string, members: any[]) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const memberIds = new Set(team.members.map((m: any) => m.user.id))
-  const available = allColaboradores.filter(u => !memberIds.has(u.id))
+  // Cualquier usuario puede estar en un equipo, excepto el coordinador del mismo equipo
+  const available = allUsers.filter(u => !memberIds.has(u.id) && u.id !== team.coordinator?.id)
 
   async function addMember(userId: string) {
     setLoading(true)
@@ -354,7 +355,7 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
               <TeamPanel
                 key={team.id}
                 team={team}
-                allColaboradores={colaboradores}
+                allUsers={users}
                 onUpdated={handleTeamUpdated}
               />
             ))}
