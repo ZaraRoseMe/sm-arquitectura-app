@@ -5,6 +5,7 @@ import { Send, MessageCircle, SmilePlus, ChevronDown, ChevronUp, Users, X } from
 import { getInitials, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/useAppStore'
+import { useSounds } from '@/hooks/useSounds'
 
 const EMOJIS = ['😊','😂','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','🤔','👀','✍️','📌','🚀','⏰','💬']
 
@@ -36,6 +37,8 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
     minimizeChatWindow, maximizeChatWindow,
     setChatWindowUnread, clearChatWindowUnread,
   } = useAppStore()
+
+  const { playChatSound } = useSounds()
 
   const [listOpen, setListOpen] = useState(false)
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
@@ -75,11 +78,17 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
     const res = await fetch(`/api/messages?with=${userId}`)
     if (res.ok) {
       const data = await res.json()
-      setMessages(prev => ({ ...prev, [userId]: data }))
+      // Sonar si hay mensajes nuevos de otros
+      setMessages(prev => {
+        const prevMsgs = prev[userId] || []
+        const newMsgs = data.filter((m: Message) => !prevMsgs.find((p: Message) => p.id === m.id) && m.senderId !== currentUserId)
+        if (newMsgs.length > 0) playChatSound()
+        return { ...prev, [userId]: data }
+      })
       setDmUnread(prev => { const n = { ...prev }; delete n[userId]; return n })
       clearChatWindowUnread(userId)
     }
-  }, [clearChatWindowUnread])
+  }, [clearChatWindowUnread, currentUserId, playChatSound])
 
   // ─── Fetch group messages ────────────────────────────────────────────────
   const fetchGroupMessages = useCallback(async () => {
@@ -87,7 +96,12 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
     const res = await fetch(`/api/group-messages?teamId=${team.id}`)
     if (res.ok) {
       const data: GroupMessage[] = await res.json()
-      setGroupMessages(data)
+      // Sonar si hay mensajes nuevos de otros
+      setGroupMessages(prev => {
+        const newMsgs = data.filter(m => !prev.find(p => p.id === m.id) && m.senderId !== currentUserId)
+        if (newMsgs.length > 0) playChatSound()
+        return data
+      })
       const groupWin = chatWindows.find(w => w.type === 'group')
       if (groupWin?.minimized && data.length > 0 && lastGroupMsgId) {
         const idx = data.findIndex(m => m.id === lastGroupMsgId)
@@ -98,7 +112,7 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
         }
       }
     }
-  }, [team, chatWindows, lastGroupMsgId, currentUserId, setChatWindowUnread])
+  }, [team, chatWindows, lastGroupMsgId, currentUserId, setChatWindowUnread, playChatSound])
 
   useEffect(() => {
     fetchUnread()
