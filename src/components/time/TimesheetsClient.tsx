@@ -1,7 +1,7 @@
 'use client'
 // src/components/time/TimesheetsClient.tsx
 import { useState, useMemo } from 'react'
-import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder, X, Check, Calendar, Grid } from 'lucide-react'
+import { Clock, Download, Trash2, ChevronLeft, ChevronRight, Users, Folder, X, Check, Calendar, Grid, FileSpreadsheet } from 'lucide-react'
 import { eachDayOfInterval, format, isWeekend, isSameDay, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getInitials } from '@/lib/utils'
@@ -45,18 +45,6 @@ function minsToTime(m: number) {
 }
 
 type GroupMode = 'user' | 'project'
-
-// ─── Quick Entry Modal (inline, para vista semanal) ──────────────────────────
-interface QuickEntryModalProps {
-  taskId: string
-  taskName: string
-  projectName: string
-  dateStr: string   // YYYY-MM-DD
-  existingEntry?: { id: string; hours: number; minutes: number; note?: string }
-  onClose: () => void
-  onSaved: (entry: any) => void
-  onDeleted?: (id: string) => void
-}
 
 function QuickEntryModal({ taskId, taskName, projectName, dateStr, editEntry, onClose, onSaved, onDeleted }: {
   taskId: string; taskName: string; projectName: string; dateStr: string
@@ -121,68 +109,38 @@ function QuickEntryModal({ taskId, taskName, projectName, dateStr, editEntry, on
           </button>
         </div>
         <div className="p-5 space-y-4">
-          {/* Inputs grandes y claros */}
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <label className="text-xs text-gray-500 mb-1 block">Horas <span className="text-gray-400">(máx. 24)</span></label>
-              <input
-                type="number" min={0} max={24}
-                className="input text-center font-bold"
-                style={{ fontSize: 28, height: 56 }}
-                value={hours}
-                onChange={e => {
-                  const v = parseInt(e.target.value) || 0
-                  setHours(Math.min(24, Math.max(0, v)))
-                }} />
+              <input type="number" min={0} max={24} className="input text-center font-bold" style={{ fontSize: 28, height: 56 }}
+                value={hours} onChange={e => setHours(Math.min(24, Math.max(0, parseInt(e.target.value) || 0)))} />
             </div>
             <span className="text-2xl text-gray-300 mt-5">:</span>
             <div className="flex-1">
               <label className="text-xs text-gray-500 mb-1 block">Minutos</label>
-              <input
-                type="number" min={0} max={59}
-                className="input text-center font-bold"
-                style={{ fontSize: 28, height: 56 }}
-                value={minutes}
-                onChange={e => {
-                  const v = parseInt(e.target.value) || 0
-                  setMinutes(Math.min(59, Math.max(0, v)))
-                }} />
+              <input type="number" min={0} max={59} className="input text-center font-bold" style={{ fontSize: 28, height: 56 }}
+                value={minutes} onChange={e => setMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} />
             </div>
           </div>
-
-          {/* Accesos rápidos */}
           <div className="flex gap-1.5 flex-wrap">
             {[[0,30],[1,0],[2,0],[4,0],[8,0],[9,0]].map(([h,m]) => (
-              <button key={`${h}${m}`} type="button"
-                onClick={() => { setHours(h); setMinutes(m) }}
+              <button key={`${h}${m}`} type="button" onClick={() => { setHours(h); setMinutes(m) }}
                 className={cn('text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium',
-                  hours === h && minutes === m
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-brand-50 hover:text-brand-600 border border-gray-200 dark:border-neutral-700')}>
+                  hours === h && minutes === m ? 'bg-brand-600 text-white' : 'bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-brand-50 hover:text-brand-600 border border-gray-200 dark:border-neutral-700')}>
                 {h > 0 ? `${h}h` : ''}{m > 0 ? `${m}min` : ''}
               </button>
             ))}
           </div>
-
-          {/* Nota */}
-          <textarea className="input resize-none text-sm" rows={2}
-            value={note} onChange={e => setNote(e.target.value)}
-            placeholder="¿Qué hiciste? (aparece como comentario)" />
-
-          {/* Acciones */}
+          <textarea className="input resize-none text-sm" rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="¿Qué hiciste? (aparece como comentario)" />
           <div className="flex gap-2">
             {isEdit && onDeleted && (
-              <button onClick={handleDelete}
-                className="btn-secondary text-red-500 hover:text-red-600 text-sm px-3">
+              <button onClick={handleDelete} className="btn-secondary text-red-500 hover:text-red-600 text-sm px-3">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
             <button onClick={onClose} className="flex-1 btn-secondary text-sm">Cancelar</button>
-            <button onClick={handleSave} disabled={loading}
-              className="flex-1 btn-primary flex items-center justify-center gap-1.5 text-sm">
-              {loading
-                ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <Check className="w-3.5 h-3.5" />}
+            <button onClick={handleSave} disabled={loading} className="flex-1 btn-primary flex items-center justify-center gap-1.5 text-sm">
+              {loading ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check className="w-3.5 h-3.5" />}
               {isEdit ? 'Actualizar' : 'Guardar'}
             </button>
           </div>
@@ -201,9 +159,7 @@ function DayCell({ date }: { date: Date }) {
   const letter = format(date, 'EEEEE', { locale: es }).toUpperCase()
   return (
     <div className={cn('flex-shrink-0 flex flex-col items-center justify-center border-r text-[9px]',
-      today ? 'border-indigo-400 text-white' : weekend
-        ? 'border-gray-100 dark:border-neutral-800 text-gray-400'
-        : 'border-gray-50 dark:border-neutral-800/50 text-gray-400 dark:text-gray-600')}
+      today ? 'border-indigo-400 text-white' : weekend ? 'border-gray-100 dark:border-neutral-800 text-gray-400' : 'border-gray-50 dark:border-neutral-800/50 text-gray-400 dark:text-gray-600')}
       style={{ width: DAY_W, backgroundColor: today ? '#6366F1' : undefined }}>
       <span className="font-bold leading-none">{letter}</span>
       <span className="font-medium">{format(date, 'd')}</span>
@@ -211,50 +167,30 @@ function DayCell({ date }: { date: Date }) {
   )
 }
 
-// Cell showing both planned (ghost) and real (solid) hours
 function TimeCell({ realMins, plannedMins, color, date }: { realMins: number; plannedMins: number; color: string; date: Date }) {
   const weekend = isWeekend(date)
   const today = isSameDay(date, new Date())
   const hasReal = realMins > 0
   const hasPlanned = plannedMins > 0
-
   return (
     <div className={cn('flex-shrink-0 flex items-end justify-center border-r relative gap-px px-0.5',
       today ? 'border-indigo-400' : weekend ? 'border-gray-100 dark:border-neutral-800' : 'border-gray-50 dark:border-neutral-800/50',
       weekend && !hasReal && !hasPlanned && 'bg-gray-100/50 dark:bg-neutral-800/30')}
       style={{ width: DAY_W, height: 40 }}>
       {today && <div className="absolute inset-0 bg-indigo-50/30 dark:bg-indigo-950/10" />}
-
-      {/* Planned bar (ghost/emerald) */}
       {hasPlanned && (
         <div className="relative flex flex-col items-center justify-end flex-1 h-full">
-          <div className="w-full rounded-t-sm"
-            style={{
-              height: `${Math.min(90, (plannedMins / 480) * 90)}%`,
-              backgroundColor: '#10B981',
-              opacity: 0.2,
-              border: '1px dashed #10B981',
-            }} />
+          <div className="w-full rounded-t-sm" style={{ height: `${Math.min(90, (plannedMins / 480) * 90)}%`, backgroundColor: '#10B981', opacity: 0.2, border: '1px dashed #10B981' }} />
         </div>
       )}
-
-      {/* Real bar (solid) */}
       {hasReal && (
         <div className="relative flex flex-col items-center justify-end flex-1 h-full">
-          <div className="w-full rounded-t-sm"
-            style={{
-              height: `${Math.min(90, (realMins / 480) * 90)}%`,
-              backgroundColor: color,
-              opacity: 0.7,
-            }} />
+          <div className="w-full rounded-t-sm" style={{ height: `${Math.min(90, (realMins / 480) * 90)}%`, backgroundColor: color, opacity: 0.7 }} />
         </div>
       )}
-
-      {/* Label — show real if exists, else planned */}
       {(hasReal || hasPlanned) && (
         <div className="absolute top-1 left-0 right-0 flex justify-center">
-          <span className="text-[7px] font-bold leading-none"
-            style={{ color: hasReal ? color : '#10B981' }}>
+          <span className="text-[7px] font-bold leading-none" style={{ color: hasReal ? color : '#10B981' }}>
             {hasReal ? minsToTime(realMins) : `~${minsToTime(plannedMins)}`}
           </span>
         </div>
@@ -268,9 +204,7 @@ function SummaryCell({ realMins, plannedMins, color, date }: { realMins: number;
   const today = isSameDay(date, new Date())
   return (
     <div className={cn('flex-shrink-0 flex items-center justify-center border-r text-[9px] font-medium gap-1',
-      today ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20' :
-      weekend ? 'border-gray-100 dark:border-neutral-800 bg-gray-100/50 dark:bg-neutral-800/30' :
-      'border-gray-50 dark:border-neutral-800/50')}
+      today ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/20' : weekend ? 'border-gray-100 dark:border-neutral-800 bg-gray-100/50 dark:bg-neutral-800/30' : 'border-gray-50 dark:border-neutral-800/50')}
       style={{ width: DAY_W, height: 32 }}>
       {realMins > 0 && <span className="font-bold" style={{ color }}>{minsToTime(realMins)}</span>}
       {plannedMins > 0 && realMins === 0 && <span className="font-bold text-emerald-500">~{minsToTime(plannedMins)}</span>}
@@ -282,19 +216,17 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   const [entries, setEntries] = useState(initialEntries)
   const [workPlans, setWorkPlans] = useState(initialPlans)
   const [viewMode, setViewMode] = useState<ViewMode>('weekly')
-  const [showOnlyMine, setShowOnlyMine] = useState(true) // Admin toggle
+  const [showOnlyMine, setShowOnlyMine] = useState(true)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [userFilter, setUserFilter] = useState('ALL')
   const [groupMode, setGroupMode] = useState<GroupMode>('project')
-  // Modal de registro rápido (vista semanal)
   const [quickEntry, setQuickEntry] = useState<{
     taskId: string; taskName: string; projectName: string; dateStr: string
     editEntry?: { id: string; hours: number; minutes: number; note?: string }
   } | null>(null)
 
-  // Rango de la semana actual (lunes a domingo)
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 })
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 })
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
@@ -304,7 +236,6 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
   const monthStr = format(currentMonth, 'yyyy-MM')
 
-  // En vista mensual: si admin con showOnlyMine=true, solo sus datos
   const effectiveUserFilter = isAdmin && showOnlyMine && viewMode === 'monthly' ? currentUserId : userFilter
 
   const filteredEntries = useMemo(() => entries.filter(e => {
@@ -321,20 +252,10 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
     return true
   }), [workPlans, monthStr, projectFilter, effectiveUserFilter])
 
-  function getRealMins(userId: string, taskId: string, date: Date) {
-    return totalMins(filteredEntries.filter(e => e.userId === userId && e.task?.id === taskId && toDateStr(e.date) === toDateStr(date)))
-  }
-
-  function getPlannedMins(userId: string, taskId: string, date: Date) {
-    return totalMins(filteredPlans.filter(p => p.userId === userId && p.task?.id === taskId && toDateStr(p.date) === toDateStr(date)))
-  }
-
-  // Group by user
   const groupedByUser = useMemo(() => {
     const allUsers = isAdmin
       ? [...users.filter(u => u.id === currentUserId), ...users.filter(u => u.id !== currentUserId)]
       : users.filter(u => u.id === currentUserId)
-
     return allUsers.map(user => {
       const userEntries = filteredEntries.filter(e => e.userId === user.id)
       const userPlans = filteredPlans.filter(p => p.userId === user.id)
@@ -347,12 +268,10 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
     }).filter(u => u.tasks.length > 0)
   }, [filteredEntries, filteredPlans, users, currentUserId, isAdmin])
 
-  // Group by project
   const groupedByProject = useMemo(() => {
     const projIds = new Set([...filteredEntries.map(e => e.task?.project?.id), ...filteredPlans.map(p => p.task?.project?.id)].filter(Boolean))
     return Array.from(projIds).map(pid => {
-      const proj = filteredEntries.find(e => e.task?.project?.id === pid)?.task?.project
-             || filteredPlans.find(p => p.task?.project?.id === pid)?.task?.project
+      const proj = filteredEntries.find(e => e.task?.project?.id === pid)?.task?.project || filteredPlans.find(p => p.task?.project?.id === pid)?.task?.project
       const projEntries = filteredEntries.filter(e => e.task?.project?.id === pid)
       const projPlans = filteredPlans.filter(p => p.task?.project?.id === pid)
       const taskIds = new Set([...projEntries.map(e => e.task?.id), ...projPlans.map(p => p.task?.id)].filter(Boolean))
@@ -374,14 +293,8 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   const grandReal = totalMins(filteredEntries)
   const grandPlanned = totalMins(filteredPlans)
 
-  // ─── Helpers vista semanal ────────────────────────────────────────────────
   function dateStrFromDate(d: Date) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-
-  function getWeekEntryFor(taskId: string, day: Date) {
-    const ds = dateStrFromDate(day)
-    return entries.find(e => e.task?.id === taskId && toDateStr(e.date) === ds && e.userId === currentUserId)
   }
 
   function getWeekTotalMins(taskId: string, day: Date) {
@@ -404,16 +317,8 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   }
 
   function handleSavedQuickEntry(entry: any, isEdit: boolean) {
-    if (isEdit) {
-      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...entry } : e))
-    } else {
-      setEntries(prev => [...prev, entry])
-    }
-    setQuickEntry(null)
-  }
-
-  function handleDeletedQuickEntry(id: string) {
-    setEntries(prev => prev.filter(e => e.id !== id))
+    if (isEdit) setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...entry } : e))
+    else setEntries(prev => [...prev, entry])
     setQuickEntry(null)
   }
 
@@ -427,6 +332,203 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
     const res = await fetch(`/api/work-plans/${id}`, { method: 'DELETE' })
     if (res.ok) { setWorkPlans(prev => prev.filter(p => p.id !== id)); toast.success('Programación eliminada') }
     else toast.error('Error al eliminar')
+  }
+
+  // ─── Exportar Excel ────────────────────────────────────────────────────────
+  async function handleExportExcel() {
+    const tid = toast.loading('Generando Excel...')
+    try {
+      const ExcelJS = (await import('exceljs')).default
+      const wb = new ExcelJS.Workbook()
+      wb.creator = 'KRONOZ'
+      wb.created = new Date()
+      const mesLabel = format(currentMonth, 'MMMM yyyy', { locale: es })
+
+      // ── Hoja 1: Detalle de registros ────────────────────────────────────
+      const ws = wb.addWorksheet('Registros')
+
+      ws.mergeCells('A1:G1')
+      const titleCell = ws.getCell('A1')
+      titleCell.value = `KRONOZ — Reporte de Tiempos · ${mesLabel}`
+      titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      ws.getRow(1).height = 28
+      ws.addRow([])
+
+      const headers = ['Colaborador', 'Proyecto', 'Tarea', 'Fecha', 'Horas reales', 'Horas programadas', 'Nota']
+      const hRow = ws.addRow(headers)
+      hRow.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      })
+      ws.getRow(3).height = 20
+
+      ws.getColumn(1).width = 22
+      ws.getColumn(2).width = 25
+      ws.getColumn(3).width = 32
+      ws.getColumn(4).width = 14
+      ws.getColumn(5).width = 14
+      ws.getColumn(6).width = 18
+      ws.getColumn(7).width = 30
+
+      // Datos reales
+      filteredEntries.sort((a, b) => toDateStr(a.date).localeCompare(toDateStr(b.date))).forEach((e, i) => {
+        const row = ws.addRow([
+          e.user?.name || '',
+          e.task?.project?.name || '',
+          e.task?.name || '',
+          toDateStr(e.date),
+          formatTime(e.hours, e.minutes),
+          '',
+          e.note || '',
+        ])
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }
+          cell.font = { size: 9 }
+          cell.alignment = { vertical: 'middle' }
+        })
+        row.getCell(5).font = { bold: true, size: 9, color: { argb: 'FF6366F1' } }
+        row.height = 18
+      })
+
+      // Datos programados (si hay)
+      if (filteredPlans.length > 0) {
+        ws.addRow([])
+        const planTitle = ws.addRow(['HORAS PROGRAMADAS', '', '', '', '', '', ''])
+        planTitle.getCell(1).font = { bold: true, size: 10, color: { argb: 'FF10B981' } }
+        ws.addRow([])
+
+        filteredPlans.sort((a, b) => toDateStr(a.date).localeCompare(toDateStr(b.date))).forEach((p, i) => {
+          const row = ws.addRow([
+            p.user?.name || '',
+            p.task?.project?.name || '',
+            p.task?.name || '',
+            toDateStr(p.date),
+            '',
+            formatTime(p.hours, p.minutes),
+            p.note || '',
+          ])
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF0FDF4' : 'FFFFFFFF' } }
+            cell.font = { size: 9 }
+            cell.alignment = { vertical: 'middle' }
+          })
+          row.getCell(6).font = { bold: true, size: 9, color: { argb: 'FF10B981' } }
+          row.height = 18
+        })
+      }
+
+      // ── Hoja 2: Resumen por usuario ─────────────────────────────────────
+      const ws2 = wb.addWorksheet('Por colaborador')
+      ws2.mergeCells('A1:D1')
+      const t2 = ws2.getCell('A1')
+      t2.value = `KRONOZ — Resumen por colaborador · ${mesLabel}`
+      t2.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+      t2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
+      t2.alignment = { horizontal: 'center', vertical: 'middle' }
+      ws2.getRow(1).height = 28
+      ws2.addRow([])
+
+      ws2.getColumn(1).width = 22
+      ws2.getColumn(2).width = 32
+      ws2.getColumn(3).width = 16
+      ws2.getColumn(4).width = 16
+
+      const h2 = ws2.addRow(['Colaborador', 'Tarea', 'Horas reales', 'Horas programadas'])
+      h2.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      })
+      ws2.getRow(3).height = 20
+
+      groupedByUser.forEach(({ user, tasks: ut, totalReal, totalPlanned }) => {
+        const uRow = ws2.addRow([user.name, `Total: ${minsToTime(totalReal)}`, minsToTime(totalReal), totalPlanned > 0 ? `~${minsToTime(totalPlanned)}` : ''])
+        uRow.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        })
+        uRow.height = 20
+
+        ut.forEach(({ task, entries: te, plans: tp }, i) => {
+          const real = totalMins(te)
+          const planned = totalMins(tp)
+          const row = ws2.addRow(['', task?.name || '', minsToTime(real), planned > 0 ? `~${minsToTime(planned)}` : ''])
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }
+            cell.font = { size: 9 }
+            cell.alignment = { vertical: 'middle' }
+          })
+          if (real > 0) row.getCell(3).font = { bold: true, size: 9, color: { argb: 'FF6366F1' } }
+          if (planned > 0) row.getCell(4).font = { bold: true, size: 9, color: { argb: 'FF10B981' } }
+          row.height = 18
+        })
+      })
+
+      // ── Hoja 3: Resumen por proyecto ────────────────────────────────────
+      const ws3 = wb.addWorksheet('Por proyecto')
+      ws3.mergeCells('A1:D1')
+      const t3 = ws3.getCell('A1')
+      t3.value = `KRONOZ — Resumen por proyecto · ${mesLabel}`
+      t3.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+      t3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
+      t3.alignment = { horizontal: 'center', vertical: 'middle' }
+      ws3.getRow(1).height = 28
+      ws3.addRow([])
+
+      ws3.getColumn(1).width = 25
+      ws3.getColumn(2).width = 32
+      ws3.getColumn(3).width = 16
+      ws3.getColumn(4).width = 16
+
+      const h3 = ws3.addRow(['Proyecto', 'Tarea', 'Horas reales', 'Horas programadas'])
+      h3.eachCell(cell => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      })
+      ws3.getRow(3).height = 20
+
+      groupedByProject.forEach(({ project, tasks: pt, totalReal, totalPlanned }) => {
+        const pRow = ws3.addRow([project?.name || '', `Total: ${minsToTime(totalReal)}`, minsToTime(totalReal), totalPlanned > 0 ? `~${minsToTime(totalPlanned)}` : ''])
+        pRow.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+        })
+        pRow.height = 20
+
+        pt.forEach(({ task, totalReal: tr, totalPlanned: tp }, i) => {
+          const row = ws3.addRow(['', task?.name || '', minsToTime(tr), tp > 0 ? `~${minsToTime(tp)}` : ''])
+          row.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }
+            cell.font = { size: 9 }
+            cell.alignment = { vertical: 'middle' }
+          })
+          if (tr > 0) row.getCell(3).font = { bold: true, size: 9, color: { argb: 'FF6366F1' } }
+          if (tp > 0) row.getCell(4).font = { bold: true, size: 9, color: { argb: 'FF10B981' } }
+          row.height = 18
+        })
+      })
+
+      // Descargar
+      const buf = await wb.xlsx.writeBuffer()
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `kronoz-tiempos-${monthStr}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      toast.dismiss(tid)
+      toast.success('Excel descargado')
+    } catch (err) {
+      console.error(err)
+      toast.dismiss(tid)
+      toast.error('Error al generar Excel')
+    }
   }
 
   async function handleExportPDF() {
@@ -470,14 +572,10 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
 
   return (
     <div className="space-y-4 animate-fade-in">
-
-      {/* Modal de registro rápido */}
       {quickEntry && (
         <QuickEntryModal
-          taskId={quickEntry.taskId}
-          taskName={quickEntry.taskName}
-          projectName={quickEntry.projectName}
-          dateStr={quickEntry.dateStr}
+          taskId={quickEntry.taskId} taskName={quickEntry.taskName}
+          projectName={quickEntry.projectName} dateStr={quickEntry.dateStr}
           editEntry={quickEntry.editEntry}
           onClose={() => setQuickEntry(null)}
           onSaved={handleSavedQuickEntry}
@@ -485,7 +583,6 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
         />
       )}
 
-      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Tiempos</h1>
@@ -500,25 +597,16 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          {/* Toggle Mis tiempos / Todos — solo admin */}
           {isAdmin && (
-            <button
-              onClick={() => setShowOnlyMine(v => !v)}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                showOnlyMine
-                  ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 text-brand-700 dark:text-brand-300'
-                  : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300'
-              )}>
-              <div className={cn('w-7 h-4 rounded-full transition-colors relative flex-shrink-0',
-                showOnlyMine ? 'bg-brand-600' : 'bg-gray-300 dark:bg-neutral-600')}>
-                <div className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all',
-                  showOnlyMine ? 'left-3.5' : 'left-0.5')} />
+            <button onClick={() => setShowOnlyMine(v => !v)}
+              className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                showOnlyMine ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300')}>
+              <div className={cn('w-7 h-4 rounded-full transition-colors relative flex-shrink-0', showOnlyMine ? 'bg-brand-600' : 'bg-gray-300 dark:bg-neutral-600')}>
+                <div className={cn('absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all', showOnlyMine ? 'left-3.5' : 'left-0.5')} />
               </div>
               {showOnlyMine ? 'Mis tiempos' : 'Todos'}
             </button>
           )}
-          {/* Toggle vista semanal / mensual */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
             <button onClick={() => setViewMode('weekly')}
               className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
@@ -531,6 +619,10 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
               <Grid className="w-3 h-3" /> Mes
             </button>
           </div>
+          {/* Botones exportar */}
+          <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 text-sm text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20">
+            <FileSpreadsheet className="w-4 h-4" /> Excel
+          </button>
           <button onClick={handleExportPDF} className="btn-secondary flex items-center gap-2 text-sm">
             <Download className="w-4 h-4" /> PDF
           </button>
@@ -540,31 +632,23 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
       {/* ─── VISTA SEMANAL ───────────────────────────────────────────────── */}
       {viewMode === 'weekly' && (
         <div className="space-y-3">
-          {/* Navegación de semana */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
-              <button onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
+              <button onClick={() => setCurrentWeek(subWeeks(currentWeek, 1))} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
                 <ChevronLeft className="w-4 h-4 text-gray-500" />
               </button>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[200px] text-center">
                 {format(weekStart, "d MMM", { locale: es })} – {format(weekEnd, "d MMM yyyy", { locale: es })}
               </span>
-              <button onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
+              <button onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
                 <ChevronRight className="w-4 h-4 text-gray-500" />
               </button>
             </div>
-            <button onClick={() => setCurrentWeek(new Date())}
-              className="text-xs text-brand-600 hover:underline">
-              Esta semana
-            </button>
+            <button onClick={() => setCurrentWeek(new Date())} className="text-xs text-brand-600 hover:underline">Esta semana</button>
           </div>
 
-          {/* Tabla semanal */}
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
-              {/* Header de días */}
               <div className="flex border-b border-gray-100 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-800/30">
                 <div className="flex-shrink-0 px-4 py-2.5 border-r border-gray-100 dark:border-neutral-800" style={{ width: 240 }}>
                   <span className="text-xs font-semibold text-gray-500">Tarea</span>
@@ -572,13 +656,11 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                 {weekDays.map(day => {
                   const isToday = isSameDay(day, new Date())
                   const weekend = isWeekend(day)
-                  const letter = format(day, 'EEEEE', { locale: es }).toUpperCase()
-                  const num = format(day, 'd')
                   return (
                     <div key={day.toISOString()} className={cn('flex-1 flex flex-col items-center justify-center py-2 text-xs border-r border-gray-100 dark:border-neutral-800 last:border-r-0',
                       isToday ? 'bg-brand-600 text-white' : weekend ? 'text-gray-400' : 'text-gray-500')}>
-                      <span className="font-bold text-[10px]">{letter}</span>
-                      <span className="font-medium">{num}</span>
+                      <span className="font-bold text-[10px]">{format(day, 'EEEEE', { locale: es }).toUpperCase()}</span>
+                      <span className="font-medium">{format(day, 'd')}</span>
                     </div>
                   )
                 })}
@@ -587,7 +669,6 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                 </div>
               </div>
 
-              {/* Filas de tareas */}
               {myTasks.length === 0 ? (
                 <div className="py-12 text-center">
                   <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -598,7 +679,6 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                   const taskWeekMins = weekDays.reduce((sum, day) => sum + getWeekTotalMins(task.id, day), 0)
                   return (
                     <div key={task.id} className="flex border-b border-gray-50 dark:border-neutral-800 last:border-b-0 hover:bg-gray-50/30 dark:hover:bg-neutral-800/10 transition-colors">
-                      {/* Nombre de tarea */}
                       <div className="flex-shrink-0 px-4 py-3 border-r border-gray-100 dark:border-neutral-800 flex flex-col justify-center" style={{ width: 240 }}>
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: task.project?.color || '#6366F1' }} />
@@ -606,47 +686,29 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                         </div>
                         <p className="text-[10px] text-gray-400 truncate pl-4">{task.project?.name}</p>
                       </div>
-                      {/* Celdas por día */}
                       {weekDays.map(day => {
                         const ds = dateStrFromDate(day)
                         const dayEntries = entries.filter(e => e.task?.id === task.id && toDateStr(e.date) === ds && e.userId === currentUserId)
-                        const dayMins = totalMins(dayEntries)
                         const weekend = isWeekend(day)
                         const isToday = isSameDay(day, new Date())
-
                         return (
                           <div key={day.toISOString()}
                             className={cn('flex-1 flex flex-col items-stretch border-r border-gray-100 dark:border-neutral-800 last:border-r-0 min-h-[52px] transition-colors p-1 gap-1',
-                              weekend ? 'bg-gray-50/50 dark:bg-neutral-800/20' : 'cursor-pointer'
-                            )}
+                              weekend ? 'bg-gray-50/50 dark:bg-neutral-800/20' : 'cursor-pointer')}
                             style={isToday ? { backgroundColor: '#6366F108' } : undefined}>
-
-                            {/* Entradas existentes */}
                             {dayEntries.map(entry => (
                               <div key={entry.id}
-                                onClick={() => setQuickEntry({
-                                  taskId: task.id, taskName: task.name,
-                                  projectName: task.project?.name || '', dateStr: ds,
-                                  editEntry: { id: entry.id, hours: entry.hours, minutes: entry.minutes, note: entry.note }
-                                })}
+                                onClick={() => setQuickEntry({ taskId: task.id, taskName: task.name, projectName: task.project?.name || '', dateStr: ds, editEntry: { id: entry.id, hours: entry.hours, minutes: entry.minutes, note: entry.note } })}
                                 className="flex flex-col items-center justify-center rounded px-1 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
                                 style={{ backgroundColor: `${task.project?.color || '#6366F1'}18` }}>
-                                <span className="text-[10px] font-bold leading-none"
-                                  style={{ color: task.project?.color || '#6366F1' }}>
+                                <span className="text-[10px] font-bold leading-none" style={{ color: task.project?.color || '#6366F1' }}>
                                   {minsToTime(entry.hours * 60 + entry.minutes)}
                                 </span>
-                                {entry.note && (
-                                  <span className="text-[9px] text-gray-400 truncate w-full text-center leading-none mt-0.5">
-                                    {entry.note}
-                                  </span>
-                                )}
+                                {entry.note && <span className="text-[9px] text-gray-400 truncate w-full text-center leading-none mt-0.5">{entry.note}</span>}
                               </div>
                             ))}
-
-                            {/* Botón + para agregar */}
                             {!weekend && (
-                              <div
-                                onClick={() => setQuickEntry({ taskId: task.id, taskName: task.name, projectName: task.project?.name || '', dateStr: ds })}
+                              <div onClick={() => setQuickEntry({ taskId: task.id, taskName: task.name, projectName: task.project?.name || '', dateStr: ds })}
                                 className="flex items-center justify-center rounded border border-dashed border-gray-200 dark:border-neutral-700 hover:border-brand-300 hover:bg-brand-50/30 transition-colors cursor-pointer"
                                 style={{ minHeight: 20 }}>
                                 <span className="text-[10px] text-gray-300 dark:text-neutral-700 hover:text-brand-400">+</span>
@@ -655,19 +717,14 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                           </div>
                         )
                       })}
-                      {/* Total de la semana */}
                       <div className="flex-shrink-0 flex items-center justify-center px-3" style={{ width: 64 }}>
-                        {taskWeekMins > 0
-                          ? <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{minsToTime(taskWeekMins)}</span>
-                          : <span className="text-[10px] text-gray-300">—</span>
-                        }
+                        {taskWeekMins > 0 ? <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{minsToTime(taskWeekMins)}</span> : <span className="text-[10px] text-gray-300">—</span>}
                       </div>
                     </div>
                   )
                 })
               )}
 
-              {/* Fila de totales */}
               {myTasks.length > 0 && (
                 <div className="flex border-t border-gray-100 dark:border-neutral-800 bg-gray-50/50 dark:bg-neutral-800/20">
                   <div className="flex-shrink-0 px-4 py-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: 240 }}>
@@ -677,18 +734,12 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                     const dayTotal = totalMins(entries.filter(e => e.userId === currentUserId && toDateStr(e.date) === dateStrFromDate(day)))
                     return (
                       <div key={day.toISOString()} className="flex-1 flex items-center justify-center border-r border-gray-100 dark:border-neutral-800 last:border-r-0 py-2">
-                        {dayTotal > 0
-                          ? <span className="text-xs font-bold text-gray-600 dark:text-gray-300">{minsToTime(dayTotal)}</span>
-                          : <span className="text-[10px] text-gray-200 dark:text-neutral-700">—</span>
-                        }
+                        {dayTotal > 0 ? <span className="text-xs font-bold text-gray-600 dark:text-gray-300">{minsToTime(dayTotal)}</span> : <span className="text-[10px] text-gray-200 dark:text-neutral-700">—</span>}
                       </div>
                     )
                   })}
                   <div className="flex-shrink-0 flex items-center justify-center px-3" style={{ width: 64 }}>
-                    {weekGrandTotal > 0
-                      ? <span className="text-xs font-bold text-brand-600">{minsToTime(weekGrandTotal)}</span>
-                      : <span className="text-[10px] text-gray-300">—</span>
-                    }
+                    {weekGrandTotal > 0 ? <span className="text-xs font-bold text-brand-600">{minsToTime(weekGrandTotal)}</span> : <span className="text-[10px] text-gray-300">—</span>}
                   </div>
                 </div>
               )}
@@ -697,52 +748,30 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
         </div>
       )}
 
-      {/* ─── VISTA MENSUAL (Gantt original) ──────────────────────────────── */}
+      {/* ─── VISTA MENSUAL ───────────────────────────────────────────────── */}
       {viewMode === 'monthly' && (
         <>
-          {/* Legend */}
           <div className="flex items-center gap-4 text-xs text-gray-500">
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-3 rounded-sm bg-brand-500 opacity-70" />
-              <span>Horas reales</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-3 rounded-sm bg-emerald-400 opacity-30 border border-dashed border-emerald-400" />
-              <span>Horas programadas</span>
-            </div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-3 rounded-sm bg-brand-500 opacity-70" /><span>Horas reales</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-4 h-3 rounded-sm bg-emerald-400 opacity-30 border border-dashed border-emerald-400" /><span>Horas programadas</span></div>
           </div>
 
-          {/* Controls */}
           <div className="flex flex-wrap items-center gap-3">
             {isAdmin && !showOnlyMine && (
               <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
-                <button onClick={() => setGroupMode('project')}
-                  className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
-                    groupMode === 'project' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                <button onClick={() => setGroupMode('project')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', groupMode === 'project' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
                   <Folder className="w-3 h-3" /> Por proyecto
                 </button>
-                <button onClick={() => setGroupMode('user')}
-                  className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
-                    groupMode === 'user' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                <button onClick={() => setGroupMode('user')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', groupMode === 'user' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
                   <Users className="w-3 h-3" /> Por usuario
                 </button>
               </div>
             )}
-
             <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
-              <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
-                <ChevronLeft className="w-4 h-4 text-gray-500" />
-              </button>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[130px] text-center">
-                {format(currentMonth, 'MMMM yyyy', { locale: es })}
-              </span>
-              <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors">
-                <ChevronRight className="w-4 h-4 text-gray-500" />
-              </button>
+              <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors"><ChevronLeft className="w-4 h-4 text-gray-500" /></button>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[130px] text-center">{format(currentMonth, 'MMMM yyyy', { locale: es })}</span>
+              <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white dark:hover:bg-neutral-700 transition-colors"><ChevronRight className="w-4 h-4 text-gray-500" /></button>
             </div>
-
             {isAdmin && !showOnlyMine && (
               <select value={userFilter} onChange={e => setUserFilter(e.target.value)} className="input w-44">
                 <option value="ALL">Todos los usuarios</option>
@@ -755,28 +784,19 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
             </select>
           </div>
 
-          {/* Gantt */}
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <div style={{ minWidth: days.length * DAY_W + LABEL_W }}>
                 <TimelineHeader />
-
                 {filteredEntries.length === 0 && filteredPlans.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm">No hay registros para este período</p>
-                  </div>
-
+                  <div className="py-16 text-center"><Clock className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No hay registros para este período</p></div>
                 ) : groupMode === 'user' ? (
                   groupedByUser.map(({ user, tasks: ut, totalReal, totalPlanned }) => (
                     <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
                       <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
                         <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                              style={{ backgroundColor: user.color || '#6366F1' }}>
-                              {getInitials(user.name)}
-                            </div>
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ backgroundColor: user.color || '#6366F1' }}>{getInitials(user.name)}</div>
                             <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{user.name}</span>
                           </div>
                           <div className="flex flex-col items-end ml-1">
@@ -809,12 +829,10 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                       ))}
                     </div>
                   ))
-
                 ) : (
                   groupedByProject.map(({ project, tasks: pt, totalReal, totalPlanned }) => (
                     <div key={project?.id} className="border-b border-gray-50 dark:border-neutral-800">
-                      <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50"
-                        style={{ backgroundColor: `${project?.color || '#6366F1'}10` }}>
+                      <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50" style={{ backgroundColor: `${project?.color || '#6366F1'}10` }}>
                         <div className="flex-shrink-0 px-3 py-2.5 flex items-center justify-between border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                           <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: project?.color || '#6366F1' }} />
@@ -855,10 +873,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                             <div key={user?.id} className="flex items-center hover:bg-gray-50/20 transition-colors">
                               <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800 pl-10" style={{ width: LABEL_W }}>
                                 <div className="flex items-center gap-1.5">
-                                  <div className="w-4 h-4 rounded-full flex items-center justify-center text-white"
-                                    style={{ backgroundColor: user?.color || '#6366F1', fontSize: 7 }}>
-                                    {getInitials(user?.name || '').charAt(0)}
-                                  </div>
+                                  <div className="w-4 h-4 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: user?.color || '#6366F1', fontSize: 7 }}>{getInitials(user?.name || '').charAt(0)}</div>
                                   <span className="text-[10px] text-gray-500 truncate">{user?.name?.split(' ')[0]}</span>
                                 </div>
                               </div>
@@ -880,7 +895,6 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
             </div>
           </div>
 
-          {/* Detail table */}
           {(filteredEntries.length > 0 || filteredPlans.length > 0) && (
             <div className="card overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 dark:border-neutral-800">
@@ -889,21 +903,15 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
               <div className="divide-y divide-gray-50 dark:divide-neutral-800">
                 {filteredEntries.sort((a,b) => toDateStr(b.date).localeCompare(toDateStr(a.date))).map(entry => (
                   <div key={entry.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50/50 dark:hover:bg-neutral-800/20 group">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0"
-                      style={{ backgroundColor: entry.user?.color || '#6366F1', fontSize: 9 }}>
-                      {getInitials(entry.user?.name || '')}
-                    </div>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: entry.user?.color || '#6366F1', fontSize: 9 }}>{getInitials(entry.user?.name || '')}</div>
                     <div className="w-20 flex-shrink-0"><span className="text-xs text-gray-500">{toDateStr(entry.date)}</span></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-700 dark:text-gray-300 truncate">{entry.task?.name}</p>
                       {entry.note && <p className="text-[10px] text-gray-400 truncate">{entry.note}</p>}
                     </div>
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-14 text-right flex-shrink-0">
-                      {formatTime(entry.hours, entry.minutes)}
-                    </span>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-14 text-right flex-shrink-0">{formatTime(entry.hours, entry.minutes)}</span>
                     {(entry.userId === currentUserId || isAdmin) && (
-                      <button onClick={() => handleDeleteEntry(entry.id)}
-                        className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition-all">
+                      <button onClick={() => handleDeleteEntry(entry.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition-all">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -911,20 +919,14 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                 ))}
                 {isAdmin && filteredPlans.map(plan => (
                   <div key={plan.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10 group">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0 border-2 border-dashed border-emerald-400"
-                      style={{ backgroundColor: plan.user?.color || '#6366F1', fontSize: 9 }}>
-                      {getInitials(plan.user?.name || '')}
-                    </div>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0 border-2 border-dashed border-emerald-400" style={{ backgroundColor: plan.user?.color || '#6366F1', fontSize: 9 }}>{getInitials(plan.user?.name || '')}</div>
                     <div className="w-20 flex-shrink-0"><span className="text-xs text-gray-400">{toDateStr(plan.date)}</span></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 truncate">{plan.task?.name} <span className="text-emerald-500 text-[10px]">(programado)</span></p>
                       {plan.note && <p className="text-[10px] text-gray-400 truncate">{plan.note}</p>}
                     </div>
-                    <span className="text-xs font-semibold text-emerald-600 w-14 text-right flex-shrink-0">
-                      ~{formatTime(plan.hours, plan.minutes)}
-                    </span>
-                    <button onClick={() => handleDeletePlan(plan.id)}
-                      className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition-all">
+                    <span className="text-xs font-semibold text-emerald-600 w-14 text-right flex-shrink-0">~{formatTime(plan.hours, plan.minutes)}</span>
+                    <button onClick={() => handleDeletePlan(plan.id)} className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 transition-all">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
