@@ -10,6 +10,7 @@ datasource db {
 
 enum Role {
   ADMIN
+  COORDINADOR  // ← nuevo
   COLABORADOR
 }
 
@@ -37,8 +38,15 @@ model User {
   pauseLogs          PauseLog[]
   timeEntries        TimeEntry[]
   workPlans          WorkPlan[]
-  sentMessages       Message[]  @relation("SentMessages")
-  receivedMessages   Message[]  @relation("ReceivedMessages")
+  sentMessages       Message[]       @relation("SentMessages")
+  receivedMessages   Message[]       @relation("ReceivedMessages")
+
+  // Relaciones de equipo
+  ledTeam            Team?           @relation("TeamCoordinator")  // si es COORDINADOR
+  teamMemberships    TeamMember[]                                   // si es COLABORADOR
+
+  // Chat de equipo
+  groupMessagesSent  GroupMessage[]
 
   @@map("users")
 }
@@ -52,7 +60,13 @@ model Project {
   color       String    @default("#3B82F6")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
   tasks       Task[]
+
+  // Proyecto asignado a un coordinador (opcional, admin puede no asignarlo)
+  teamId      String?
+  team        Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   @@map("projects")
 }
 
@@ -70,10 +84,12 @@ model Task {
   project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId      String
   user        User       @relation(fields: [userId], references: [id])
+
   pauseLogs     PauseLog[]
   notifications Notification[]
   timeEntries   TimeEntry[]
   workPlans     WorkPlan[]
+
   @@map("tasks")
 }
 
@@ -88,6 +104,7 @@ model TimeEntry {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+
   @@map("time_entries")
 }
 
@@ -104,6 +121,7 @@ model WorkPlan {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdBy String   // id del admin que lo programó
+
   @@map("work_plans")
 }
 
@@ -116,6 +134,7 @@ model PauseLog {
   pausedAt    DateTime  @default(now())
   resumedAt   DateTime?
   reason      String?
+
   @@map("pause_logs")
 }
 
@@ -129,9 +148,11 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
   @@map("notifications")
 }
 
+// Chat 1 a 1 (existente, no se toca)
 model Message {
   id         String   @id @default(cuid())
   content    String
@@ -141,5 +162,57 @@ model Message {
   sender     User     @relation("SentMessages", fields: [senderId], references: [id])
   receiverId String
   receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
   @@map("messages")
+}
+
+// ─── NUEVOS MODELOS ──────────────────────────────────────────────────────────
+
+// Equipo de un coordinador
+model Team {
+  id            String   @id @default(cuid())
+  name          String   // nombre editable por el coordinador
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Un equipo pertenece a un coordinador
+  coordinatorId String   @unique
+  coordinator   User     @relation("TeamCoordinator", fields: [coordinatorId], references: [id])
+
+  // Miembros del equipo
+  members       TeamMember[]
+
+  // Proyectos asignados a este equipo
+  projects      Project[]
+
+  // Mensajes grupales de este equipo
+  groupMessages GroupMessage[]
+
+  @@map("teams")
+}
+
+// Relación coordinador ↔ colaboradores
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime @default(now())
+
+  @@unique([teamId, userId]) // un colaborador no puede estar dos veces en el mismo equipo
+  @@map("team_members")
+}
+
+// Mensajes grupales del equipo (coordinador → equipo o miembro → equipo)
+model GroupMessage {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+
+  @@map("group_messages")
 }
