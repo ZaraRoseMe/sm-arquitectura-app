@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, MessageCircle, SmilePlus, ChevronDown, ChevronUp, Users, X } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { useAppStore } from '@/store/useAppStore'
 
 const EMOJIS = ['😊','😂','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','🤔','👀','✍️','📌','🚀','⏰','💬']
 
@@ -21,18 +22,6 @@ interface Team {
   coordinator: { id: string; name: string; color?: string }
   members: { user: User }[]
 }
-
-// Una "ventana" puede ser un DM o el chat grupal
-interface ChatWindow {
-  id: string          // userId para DM, teamId para grupo
-  type: 'dm' | 'group'
-  label: string
-  color: string
-  minimized: boolean
-  unread: number
-  lastSender?: string  // para notificación parpadeante
-}
-
 interface ChatPanelProps {
   currentUserId: string
   users: User[]
@@ -41,9 +30,15 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ currentUserId, users, team, userRole }: ChatPanelProps) {
+  const {
+    chatWindows,
+    openChatWindow, closeChatWindow,
+    minimizeChatWindow, maximizeChatWindow,
+    setChatWindowUnread, clearChatWindowUnread,
+  } = useAppStore()
+
   const [listOpen, setListOpen] = useState(false)
-  const [windows, setWindows] = useState<ChatWindow[]>([])
-  const [messages, setMessages] = useState<Record<string, Message[]>>({})       // keyed by userId
+  const [messages, setMessages] = useState<Record<string, Message[]>>({})
   const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([])
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [showEmojis, setShowEmojis] = useState<Record<string, boolean>>({})
@@ -65,16 +60,15 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
       const map: Record<string, number> = {}
       data.forEach((d: any) => { map[d.senderId] = d._count.id })
       setDmUnread(map)
-      // Actualizar unread en ventanas minimizadas
-      setWindows(prev => prev.map(w => {
-        if (w.type === 'dm' && map[w.id] > 0) {
+      // Actualizar unread en ventanas minimizadas del store
+      chatWindows.forEach(w => {
+        if (w.type === 'dm' && w.minimized && map[w.id] > 0) {
           const sender = users.find(u => u.id === w.id)
-          return { ...w, unread: map[w.id], lastSender: sender?.name }
+          setChatWindowUnread(w.id, map[w.id], sender?.name)
         }
-        return w
-      }))
+      })
     }
-  }, [users])
+  }, [chatWindows, users, setChatWindowUnread])
 
   // ─── Fetch DM messages ───────────────────────────────────────────────────
   const fetchMessages = useCallback(async (userId: string) => {
@@ -83,9 +77,9 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
       const data = await res.json()
       setMessages(prev => ({ ...prev, [userId]: data }))
       setDmUnread(prev => { const n = { ...prev }; delete n[userId]; return n })
-      setWindows(prev => prev.map(w => w.id === userId ? { ...w, unread: 0, lastSender: undefined } : w))
+      clearChatWindowUnread(userId)
     }
-  }, [])
+  }, [clearChatWindowUnread])
 
   // ─── Fetch group messages ────────────────────────────────────────────────
   const fetchGroupMessages = useCallback(async () => {
@@ -94,23 +88,17 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
     if (res.ok) {
       const data: GroupMessage[] = await res.json()
       setGroupMessages(data)
-      // Calcular no leídos
-      const win = windows.find(w => w.type === 'group')
-      if (win?.minimized && data.length > 0) {
-        const lastId = lastGroupMsgId
-        if (lastId) {
-          const idx = data.findIndex(m => m.id === lastId)
-          const newMsgs = idx >= 0 ? data.slice(idx + 1).filter(m => m.senderId !== currentUserId) : []
-          if (newMsgs.length > 0) {
-            setGroupUnread(newMsgs.length)
-            setWindows(prev => prev.map(w => w.type === 'group'
-              ? { ...w, unread: newMsgs.length, lastSender: newMsgs[newMsgs.length-1].sender?.name }
-              : w))
-          }
+      const groupWin = chatWindows.find(w => w.type === 'group')
+      if (groupWin?.minimized && data.length > 0 && lastGroupMsgId) {
+        const idx = data.findIndex(m => m.id === lastGroupMsgId)
+        const newMsgs = idx >= 0 ? data.slice(idx + 1).filter(m => m.senderId !== currentUserId) : []
+        if (newMsgs.length > 0) {
+          setGroupUnread(newMsgs.length)
+          setChatWindowUnread(team.id, newMsgs.length, newMsgs[newMsgs.length-1].sender?.name)
         }
       }
     }
-  }, [team, windows, lastGroupMsgId, currentUserId])
+  }, [team, chatWindows, lastGroupMsgId, currentUserId, setChatWindowUnread])
 
   useEffect(() => {
     fetchUnread()
@@ -127,13 +115,12 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
 
   // Poll DMs abiertos
   useEffect(() => {
-    const openDMs = windows.filter(w => w.type === 'dm' && !w.minimized)
+    const openDMs = chatWindows.filter(w => w.type === 'dm' && !w.minimized)
     if (openDMs.length === 0) return
     const intervals = openDMs.map(w => setInterval(() => fetchMessages(w.id), 3000))
     return () => intervals.forEach(clearInterval)
-  }, [windows.filter(w => w.type === 'dm' && !w.minimized).map(w => w.id).join(',')])
+  }, [chatWindows.filter(w => w.type === 'dm' && !w.minimized).map(w => w.id).join(',')])
 
-  // Scroll al final
   useEffect(() => {
     Object.keys(messagesEndRefs.current).forEach(id => {
       messagesEndRefs.current[id]?.scrollIntoView({ behavior: 'smooth' })
@@ -143,53 +130,29 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
   // ─── Abrir ventana ───────────────────────────────────────────────────────
   function openDM(user: User) {
     setListOpen(false)
-    const exists = windows.find(w => w.id === user.id)
-    if (exists) {
-      setWindows(prev => prev.map(w => w.id === user.id ? { ...w, minimized: false } : w))
-    } else {
-      setWindows(prev => [...prev, {
-        id: user.id, type: 'dm', label: user.name,
-        color: user.color || '#6366F1', minimized: false, unread: 0,
-      }])
-    }
+    openChatWindow({ id: user.id, type: 'dm', label: user.name, color: user.color || '#6366F1' })
     fetchMessages(user.id)
   }
 
   function openGroup() {
     setListOpen(false)
     if (!team) return
-    const exists = windows.find(w => w.type === 'group')
-    if (exists) {
-      setWindows(prev => prev.map(w => w.type === 'group' ? { ...w, minimized: false, unread: 0, lastSender: undefined } : w))
-    } else {
-      setWindows(prev => [{
-        id: team.id, type: 'group', label: team.name,
-        color: team.coordinator?.color || '#F59E0B', minimized: false, unread: 0,
-      }, ...prev])
-    }
+    openChatWindow({ id: team.id, type: 'group', label: team.name, color: team.coordinator?.color || '#F59E0B' })
     setGroupUnread(0)
     if (groupMessages.length > 0) setLastGroupMsgId(groupMessages[groupMessages.length - 1].id)
   }
 
-  function toggleMinimize(id: string) {
-    setWindows(prev => prev.map(w => {
-      if (w.id !== id) return w
-      const nowOpen = w.minimized
-      if (nowOpen) {
-        // Al abrir, marcar como leído
-        if (w.type === 'dm') fetchMessages(id)
-        if (w.type === 'group') {
-          setGroupUnread(0)
-          if (groupMessages.length > 0) setLastGroupMsgId(groupMessages[groupMessages.length - 1].id)
-        }
-        return { ...w, minimized: false, unread: 0, lastSender: undefined }
+  function handleToggleMinimize(win: typeof chatWindows[0]) {
+    if (win.minimized) {
+      maximizeChatWindow(win.id)
+      if (win.type === 'dm') fetchMessages(win.id)
+      if (win.type === 'group') {
+        setGroupUnread(0)
+        if (groupMessages.length > 0) setLastGroupMsgId(groupMessages[groupMessages.length - 1].id)
       }
-      return { ...w, minimized: true }
-    }))
-  }
-
-  function closeWindow(id: string) {
-    setWindows(prev => prev.filter(w => w.id !== id))
+    } else {
+      minimizeChatWindow(win.id)
+    }
   }
 
   // ─── Send DM ─────────────────────────────────────────────────────────────
@@ -243,7 +206,7 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
   }
 
   // ─── Render ventana ───────────────────────────────────────────────────────
-  function renderWindow(win: ChatWindow) {
+  function renderWindow(win: typeof chatWindows[0]) {
     const isGroup = win.type === 'group'
     const msgs = isGroup ? groupMessages : (messages[win.id] || [])
     const input = inputs[win.id] || ''
@@ -256,15 +219,14 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-t-2xl cursor-pointer select-none border-b border-gray-100 dark:border-neutral-800"
           style={{ backgroundColor: `${win.color}18` }}
-          onClick={() => toggleMinimize(win.id)}>
+          onClick={() => handleToggleMinimize(win)}>
           <div className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
             style={{ backgroundColor: win.color, fontSize: 9 }}>
             {isGroup ? <Users style={{ width: 12, height: 12 }} /> : getInitials(win.label).charAt(0)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className={cn('text-xs font-semibold truncate',
-              win.unread > 0 && win.minimized ? 'animate-pulse' : '',
-              'text-gray-900 dark:text-white')}>
+            <p className={cn('text-xs font-semibold truncate text-gray-900 dark:text-white',
+              win.unread > 0 && win.minimized ? 'animate-pulse' : '')}>
               {win.label}
             </p>
             {win.minimized && win.unread > 0 && win.lastSender && (
@@ -280,16 +242,14 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
             ? <ChevronUp className="w-3 h-3 text-gray-400 flex-shrink-0" />
             : <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
           }
-          <button onClick={e => { e.stopPropagation(); closeWindow(win.id) }}
+          <button onClick={e => { e.stopPropagation(); closeChatWindow(win.id) }}
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-black/10 text-gray-400 hover:text-gray-600 flex-shrink-0">
             <X style={{ width: 10, height: 10 }} />
           </button>
         </div>
 
-        {/* Contenido (solo si no minimizado) */}
         {!win.minimized && (
           <>
-            {/* Mensajes */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {msgs.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center py-6">
@@ -302,7 +262,6 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
               {msgs.map((msg, i) => {
                 const isMe = msg.senderId === currentUserId
                 const showDate = i === 0 || new Date(msg.createdAt).toDateString() !== new Date(msgs[i-1].createdAt).toDateString()
-                const bubbleColor = isMe ? win.color : undefined
                 return (
                   <div key={msg.id}>
                     {showDate && (
@@ -325,7 +284,7 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
                         )}
                         <div className={cn('px-2.5 py-1.5 rounded-2xl text-xs',
                           isMe ? 'rounded-br-sm text-white' : 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-white rounded-bl-sm')}
-                          style={isMe ? { backgroundColor: bubbleColor } : undefined}>
+                          style={isMe ? { backgroundColor: win.color } : undefined}>
                           <p className="break-words leading-relaxed">{msg.content}</p>
                           <p className={cn('text-[9px] mt-0.5 text-right', isMe ? 'text-white/60' : 'text-gray-400')}>
                             {new Date(msg.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
@@ -340,7 +299,6 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
               <div ref={el => { messagesEndRefs.current[win.id] = el }} />
             </div>
 
-            {/* Emojis */}
             {isEmoji && (
               <div className="px-2 py-1.5 border-t border-gray-100 dark:border-neutral-800 flex flex-wrap gap-1">
                 {EMOJIS.map(e => (
@@ -352,7 +310,6 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
               </div>
             )}
 
-            {/* Input */}
             <div className="px-2 py-2 border-t border-gray-100 dark:border-neutral-800 flex items-center gap-1.5">
               <button onClick={() => setShowEmojis(prev => ({ ...prev, [win.id]: !prev[win.id] }))}
                 className={cn('flex-shrink-0 text-gray-400 hover:text-brand-500 transition-colors', isEmoji && 'text-brand-500')}>
@@ -381,9 +338,8 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
 
   return (
     <div className="fixed bottom-0 right-4 z-50 flex items-end gap-2">
-
-      {/* Ventanas apiladas — de derecha a izquierda, la más reciente más a la derecha */}
-      {[...windows].reverse().map(win => renderWindow(win))}
+      {/* Ventanas apiladas */}
+      {[...chatWindows].reverse().map(win => renderWindow(win))}
 
       {/* Barra de mensajes */}
       <div className="bg-white dark:bg-neutral-900 border border-b-0 border-gray-200 dark:border-neutral-700 rounded-t-2xl shadow-xl" style={{ minWidth: 200 }}>
@@ -399,8 +355,6 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
 
         {listOpen && (
           <div className="border-t border-gray-100 dark:border-neutral-800" style={{ maxHeight: 320, overflowY: 'auto', width: 220 }}>
-
-            {/* Chat de equipo */}
             {team && (
               <div>
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-2 pb-1">Mi equipo</p>
@@ -423,8 +377,6 @@ export default function ChatPanel({ currentUserId, users, team, userRole }: Chat
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 pt-2 pb-1">General</p>
               </div>
             )}
-
-            {/* DMs */}
             <div className="divide-y divide-gray-50 dark:divide-neutral-800">
               {otherUsers.length === 0 && (
                 <p className="text-xs text-gray-400 px-4 py-3 text-center">No hay otros usuarios</p>
