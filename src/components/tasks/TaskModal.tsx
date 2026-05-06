@@ -113,9 +113,6 @@ function ProjectTreeSelect({ projects, value, onChange }: {
   const [open, setOpen] = useState(false)
   const [selectedName, setSelectedName] = useState('')
 
-  console.log('ProjectTreeSelect projects:', JSON.stringify(projects.map(p => ({ id: p.id, name: p.name, children: (p.children || []).map((c: any) => c.name) }))))
-
-  // Buscar nombre del proyecto seleccionado al montar
   useEffect(() => {
     if (!value) { setSelectedName(''); return }
     function findName(ps: any[]): string {
