@@ -8,16 +8,51 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(year, month - 1, day, 12, 0, 0)
 }
 
-export async function GET() {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const projects = await prisma.project.findMany({
+// Include recursivo — soporta hasta 5 niveles de profundidad
+const projectInclude: any = {
+  tasks: { include: { user: true } },
+  _count: { select: { tasks: true } },
+  team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+  children: {
+    orderBy: { name: 'asc' },
     include: {
       tasks: { include: { user: true } },
       _count: { select: { tasks: true } },
       team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+      children: {
+        orderBy: { name: 'asc' },
+        include: {
+          tasks: { include: { user: true } },
+          _count: { select: { tasks: true } },
+          children: {
+            orderBy: { name: 'asc' },
+            include: {
+              tasks: { include: { user: true } },
+              _count: { select: { tasks: true } },
+              children: {
+                orderBy: { name: 'asc' },
+                include: {
+                  tasks: { include: { user: true } },
+                  _count: { select: { tasks: true } },
+                  children: { include: { tasks: true, _count: { select: { tasks: true } } } },
+                },
+              },
+            },
+          },
+        },
+      },
     },
+  },
+}
+
+export async function GET() {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Solo nodos raíz — los hijos vienen anidados
+  const projects = await prisma.project.findMany({
+    where: { parentId: null },
+    include: projectInclude,
     orderBy: { name: 'asc' },
   })
 
@@ -31,10 +66,17 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { name, description, startDate, endDate, color, teamId } = body
+  const { name, description, startDate, endDate, color, teamId, parentId } = body
 
   if (!name || !startDate || !endDate) {
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
+  }
+
+  // Heredar color del padre si no se especifica
+  let resolvedColor = color || '#3B82F6'
+  if (parentId && !color) {
+    const parent = await prisma.project.findUnique({ where: { id: parentId } })
+    if (parent) resolvedColor = parent.color
   }
 
   const project = await prisma.project.create({
@@ -43,14 +85,11 @@ export async function POST(req: NextRequest) {
       description: description || '',
       startDate: parseLocalDate(startDate),
       endDate: parseLocalDate(endDate),
-      color: color || '#3B82F6',
+      color: resolvedColor,
       ...(teamId ? { teamId } : {}),
+      ...(parentId ? { parentId } : {}),
     },
-    include: {
-      tasks: { include: { user: true } },
-      _count: { select: { tasks: true } },
-      team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
-    },
+    include: projectInclude,
   })
 
   return NextResponse.json(project, { status: 201 })
