@@ -1,12 +1,14 @@
 'use client'
 // src/components/layout/NotificationPoller.tsx
-// Polls /api/notifications every 15s and updates the store
 import { useEffect, useRef } from 'react'
 import { useAppStore } from '@/store/useAppStore'
+import { useSounds } from '@/hooks/useSounds'
 
 export default function NotificationPoller() {
-  const { setNotifications, notifications } = useAppStore()
+  const { setNotifications } = useAppStore()
+  const { playNotificationSound } = useSounds()
   const prevUnread = useRef(0)
+  const isFirst = useRef(true)
 
   async function fetchNotifications() {
     try {
@@ -15,21 +17,25 @@ export default function NotificationPoller() {
       const data = await res.json()
       setNotifications(data)
 
-      // Play subtle sound / browser notification if new unread arrived
       const unread = data.filter((n: any) => !n.read).length
-      if (unread > prevUnread.current && prevUnread.current !== -1) {
-        // Visual pulse via document title
-        const original = document.title
-        document.title = `(${unread}) ${original.replace(/^\(\d+\)\s*/, '')}`
+
+      if (!isFirst.current && unread > prevUnread.current) {
+        // Sonido de notificación del sistema
+        playNotificationSound()
+        // Título del documento
+        const base = document.title.replace(/^\(\d+\)\s*/, '')
+        document.title = `(${unread}) ${base}`
+      } else if (unread === 0) {
+        document.title = document.title.replace(/^\(\d+\)\s*/, '')
       }
+
       prevUnread.current = unread
     } catch {}
   }
 
   useEffect(() => {
-    prevUnread.current = -1 // skip first pulse
     fetchNotifications()
-    prevUnread.current = 0
+    isFirst.current = false
     const interval = setInterval(fetchNotifications, 15000)
     return () => clearInterval(interval)
   }, [])
