@@ -1,7 +1,7 @@
 'use client'
 // src/components/tasks/TaskModal.tsx
 import { useState, useEffect } from 'react'
-import { X, Plus, Clock, CalendarCheck, ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { X, Plus, Clock, CalendarCheck, ChevronLeft, ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { formatDateInput } from '@/lib/utils'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday, isSameDay, addMonths, subMonths, isWeekend } from 'date-fns'
 import { es } from 'date-fns/locale'
