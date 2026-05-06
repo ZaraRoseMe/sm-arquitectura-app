@@ -35,13 +35,48 @@ export default async function TasksPage() {
       orderBy: { updatedAt: 'desc' },
     }),
 
-    // Proyectos: COORDINADOR solo ve los de su equipo
+    // Proyectos en árbol — solo raíces, children anidados
     isCoordinador
       ? prisma.project.findMany({
-          where: { team: { coordinatorId: session.user.id } },
+          where: { parentId: null, team: { coordinatorId: session.user.id } },
           orderBy: { name: 'asc' },
+          include: {
+            children: {
+              orderBy: { name: 'asc' },
+              include: {
+                children: {
+                  orderBy: { name: 'asc' },
+                  include: {
+                    children: {
+                      orderBy: { name: 'asc' },
+                      include: { children: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
         })
-      : prisma.project.findMany({ orderBy: { name: 'asc' } }),
+      : prisma.project.findMany({
+          where: { parentId: null },
+          orderBy: { name: 'asc' },
+          include: {
+            children: {
+              orderBy: { name: 'asc' },
+              include: {
+                children: {
+                  orderBy: { name: 'asc' },
+                  include: {
+                    children: {
+                      orderBy: { name: 'asc' },
+                      include: { children: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
 
     // Usuarios para asignar tareas: ADMIN ve todos, COORDINADOR ve sus colaboradores
     isAdmin
