@@ -10,7 +10,7 @@ datasource db {
 
 enum Role {
   ADMIN
-  COORDINADOR  // ← nuevo
+  COORDINADOR
   COLABORADOR
 }
 
@@ -40,12 +40,8 @@ model User {
   workPlans          WorkPlan[]
   sentMessages       Message[]       @relation("SentMessages")
   receivedMessages   Message[]       @relation("ReceivedMessages")
-
-  // Relaciones de equipo
-  ledTeam            Team?           @relation("TeamCoordinator")  // si es COORDINADOR
-  teamMemberships    TeamMember[]                                   // si es COLABORADOR
-
-  // Chat de equipo
+  ledTeam            Team?           @relation("TeamCoordinator")
+  teamMemberships    TeamMember[]
   groupMessagesSent  GroupMessage[]
 
   @@map("users")
@@ -61,11 +57,18 @@ model Project {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tasks       Task[]
+  // ─── Jerarquía auto-referencial ───────────────────────────────────────────
+  // parentId null = nodo raíz (desarrollo principal)
+  // parentId = otro proyecto = subproyecto
+  parentId    String?
+  parent      Project?  @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Project[] @relation("ProjectHierarchy")
 
-  // Proyecto asignado a un coordinador (opcional, admin puede no asignarlo)
+  // Asignación a equipo coordinador
   teamId      String?
   team        Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  tasks       Task[]
 
   @@map("projects")
 }
@@ -108,7 +111,6 @@ model TimeEntry {
   @@map("time_entries")
 }
 
-// Tiempo programado por el admin para un usuario en una tarea
 model WorkPlan {
   id        String   @id @default(cuid())
   date      DateTime
@@ -120,7 +122,7 @@ model WorkPlan {
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  createdBy String   // id del admin que lo programó
+  createdBy String
 
   @@map("work_plans")
 }
@@ -152,7 +154,6 @@ model Notification {
   @@map("notifications")
 }
 
-// Chat 1 a 1 (existente, no se toca)
 model Message {
   id         String   @id @default(cuid())
   content    String
@@ -166,32 +167,20 @@ model Message {
   @@map("messages")
 }
 
-// ─── NUEVOS MODELOS ──────────────────────────────────────────────────────────
-
-// Equipo de un coordinador
 model Team {
   id            String   @id @default(cuid())
-  name          String   // nombre editable por el coordinador
+  name          String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  // Un equipo pertenece a un coordinador
   coordinatorId String   @unique
   coordinator   User     @relation("TeamCoordinator", fields: [coordinatorId], references: [id])
-
-  // Miembros del equipo
   members       TeamMember[]
-
-  // Proyectos asignados a este equipo
   projects      Project[]
-
-  // Mensajes grupales de este equipo
   groupMessages GroupMessage[]
 
   @@map("teams")
 }
 
-// Relación coordinador ↔ colaboradores
 model TeamMember {
   id        String   @id @default(cuid())
   teamId    String
@@ -200,11 +189,10 @@ model TeamMember {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   joinedAt  DateTime @default(now())
 
-  @@unique([teamId, userId]) // un colaborador no puede estar dos veces en el mismo equipo
+  @@unique([teamId, userId])
   @@map("team_members")
 }
 
-// Mensajes grupales del equipo (coordinador → equipo o miembro → equipo)
 model GroupMessage {
   id        String   @id @default(cuid())
   content   String
