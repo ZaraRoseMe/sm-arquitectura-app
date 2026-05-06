@@ -38,6 +38,7 @@ interface AppStore {
 
   // Chat actions
   openChatWindow: (win: Omit<ChatWindow, 'minimized' | 'unread'>) => void
+  openMinimized: (win: Omit<ChatWindow, 'minimized' | 'unread'>) => void // ← NUEVO
   closeChatWindow: (id: string) => void
   minimizeChatWindow: (id: string) => void
   maximizeChatWindow: (id: string) => void
@@ -94,6 +95,15 @@ export const useAppStore = create<AppStore>((set) => ({
     // Nueva ventana — agregar al inicio
     return {
       chatWindows: [{ ...win, minimized: false, unread: 0 }, ...state.chatWindows]
+    }
+  }),
+
+  // ← NUEVO: aparece minimizada sin interrumpir al usuario
+  openMinimized: (win) => set(state => {
+    const exists = state.chatWindows.find(w => w.id === win.id)
+    if (exists) return state // ya existe (abierta o minimizada), no tocar
+    return {
+      chatWindows: [...state.chatWindows, { ...win, minimized: true, unread: 0 }]
     }
   }),
 
