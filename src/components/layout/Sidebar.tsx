@@ -15,6 +15,14 @@ const adminLinks = [
   { href: '/dashboard/users', label: 'Usuarios', icon: Users },
 ]
 
+const coordinadorLinks = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/projects', label: 'Mis Proyectos', icon: FolderOpen },
+  { href: '/dashboard/tasks', label: 'Tareas del equipo', icon: CheckSquare },
+  { href: '/dashboard/gantt', label: 'Gantt', icon: BarChart2 },
+  { href: '/dashboard/timesheets', label: 'Tiempos', icon: Clock },
+]
+
 const colaboradorLinks = [
   { href: '/dashboard', label: 'Mi Panel', icon: LayoutDashboard },
   { href: '/dashboard/tasks', label: 'Mis Tareas', icon: CheckSquare },
@@ -59,7 +67,7 @@ interface SidebarProps { role: string }
 export default function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname()
   const { sidebarOpen, toggleSidebar } = useAppStore()
-  const links = role === 'ADMIN' ? adminLinks : colaboradorLinks
+  const links = role === 'ADMIN' ? adminLinks : role === 'COORDINADOR' ? coordinadorLinks : colaboradorLinks
 
   return (
     <aside className={cn(
@@ -117,9 +125,12 @@ export default function Sidebar({ role }: SidebarProps) {
           <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium',
             role === 'ADMIN'
               ? 'bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400'
-              : 'bg-gray-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-400')}>
-            <div className={cn('w-1.5 h-1.5 rounded-full', role === 'ADMIN' ? 'bg-brand-500' : 'bg-gray-400')} />
-            {role === 'ADMIN' ? 'Administrador' : 'Colaborador'}
+              : role === 'COORDINADOR'
+                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+                : 'bg-gray-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-400')}>
+            <div className={cn('w-1.5 h-1.5 rounded-full',
+              role === 'ADMIN' ? 'bg-brand-500' : role === 'COORDINADOR' ? 'bg-amber-500' : 'bg-gray-400')} />
+            {role === 'ADMIN' ? 'Administrador' : role === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'}
           </div>
         </div>
       )}
