@@ -118,7 +118,7 @@ function KronozAnimatedLogo() {
         {/* Hexágono exterior */}
         <polygon
           points={outerPoly}
-          stroke="rgba(255,255,255,0.85)"
+          stroke="#6366F1"
           strokeWidth="0.8"
           fill="none"
           className="hex-outer"
@@ -127,7 +127,7 @@ function KronozAnimatedLogo() {
         {/* Hexágono interior */}
         <polygon
           points={innerPoly}
-          stroke="rgba(255,255,255,0.3)"
+          stroke="#a5b4fc"
           strokeWidth="0.6"
           fill="none"
           className="hex-inner"
@@ -138,7 +138,7 @@ function KronozAnimatedLogo() {
           <line
             key={i}
             x1={l.x1} y1={l.y1} x2={cx} y2={cy}
-            stroke="rgba(255,255,255,0.4)"
+            stroke="#a5b4fc"
             strokeWidth="0.7"
             className={`anim-line anim-line-${i}`}
           />
@@ -149,13 +149,13 @@ function KronozAnimatedLogo() {
           <circle
             key={i}
             cx={p.x} cy={p.y} r="2.2"
-            fill="rgba(255,255,255,0.6)"
+            fill="#a5b4fc"
             className={`node-dot node-${i}`}
           />
         ))}
 
         {/* Nodo central */}
-        <circle cx={cx} cy={cy} r="3.5" fill="white" className="center-dot" />
+        <circle cx={cx} cy={cy} r="3.5" fill="#6366F1" className="center-dot" />
       </svg>
 
       {/* Texto del logo */}
@@ -169,7 +169,7 @@ function KronozAnimatedLogo() {
           fontFamily: "'Cormorant Garamond', serif",
           fontWeight: 300,
           fontSize: '32px',
-          color: 'white',
+          color: '#1e1b4b',
           letterSpacing: '0.28em',
           lineHeight: 1,
         }}>
@@ -180,7 +180,7 @@ function KronozAnimatedLogo() {
           fontWeight: 300,
           fontStyle: 'italic',
           fontSize: '11px',
-          color: 'rgba(255,255,255,0.28)',
+          color: '#a5b4fc',
           letterSpacing: '0.18em',
           marginTop: '6px',
         }}>
@@ -220,7 +220,7 @@ export default function LoginPage() {
       />
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 55%, #312e81 100%)',
+        background: 'white',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -229,11 +229,12 @@ export default function LoginPage() {
         overflow: 'hidden',
       }}>
 
-        {/* Ruido de fondo sutil */}
+        {/* Halo índigo muy sutil arriba */}
         <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.03,
-          backgroundImage: `radial-gradient(circle at 15% 85%, rgba(99,102,241,0.8) 0%, transparent 50%),
-                            radial-gradient(circle at 85% 15%, rgba(129,140,248,0.6) 0%, transparent 50%)`,
+          position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+          width: '600px', height: '300px', pointerEvents: 'none',
+          background: 'radial-gradient(ellipse at 50% 0%, #e0e7ff 0%, transparent 70%)',
+          opacity: 0.5,
         }} />
 
         {/* Contenedor centrado */}
