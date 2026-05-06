@@ -12,10 +12,9 @@ export default async function ProjectsPage() {
   const isAdmin = role === 'ADMIN'
   const isCoordinador = role === 'COORDINADOR'
 
-  // Colaboradores no tienen acceso a proyectos
   if (role === 'COLABORADOR') redirect('/dashboard')
 
-  const [projects, users] = await Promise.all([
+  const [projects, users, teams] = await Promise.all([
     isCoordinador
       ? prisma.project.findMany({
           where: { team: { coordinatorId: session.user.id } },
@@ -37,14 +36,26 @@ export default async function ProjectsPage() {
     prisma.user.findMany({
       select: { id: true, name: true, email: true, role: true },
     }),
+
+    // Teams solo para admin (para asignar coordinadores)
+    isAdmin
+      ? prisma.team.findMany({
+          include: {
+            coordinator: { select: { id: true, name: true, color: true } },
+          },
+          orderBy: { name: 'asc' },
+        })
+      : Promise.resolve([]),
   ])
 
   return (
     <ProjectsClient
       projects={projects as any}
       users={users as any}
+      teams={teams as any}
       isAdmin={isAdmin}
       isCoordinador={isCoordinador}
     />
   )
 }
+
