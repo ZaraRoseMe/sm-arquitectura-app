@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
   const projectId = searchParams.get('projectId')
   const from = searchParams.get('from')
   const to = searchParams.get('to')
-
   const isAdmin = session.user.role === 'ADMIN'
 
   const entries = await prisma.timeEntry.findMany({
@@ -25,17 +24,14 @@ export async function GET(req: NextRequest) {
       userId: isAdmin ? (userId || undefined) : session.user.id,
       ...(projectId && { task: { projectId } }),
       ...(from && to && {
-        date: {
-          gte: parseLocalDate(from),
-          lte: parseLocalDate(to),
-        }
+        date: { gte: parseLocalDate(from), lte: parseLocalDate(to) }
       }),
     },
     include: {
       task: { include: { project: true } },
       user: { select: { id: true, name: true, color: true } },
     },
-    orderBy: { date: 'desc' },
+    orderBy: { createdAt: 'asc' },
   })
 
   return NextResponse.json(entries)
@@ -51,36 +47,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
   }
 
-  const parsedDate = parseLocalDate(date)
-
-  // Upsert: si ya existe un registro para este usuario+tarea+día, lo actualiza
-  const existing = await prisma.timeEntry.findFirst({
-    where: { taskId, userId: session.user.id, date: parsedDate },
+  // Siempre crea — múltiples entradas por día permitidas
+  const entry = await prisma.timeEntry.create({
+    data: {
+      taskId,
+      userId: session.user.id,
+      date: parseLocalDate(date),
+      hours: hours || 0,
+      minutes: minutes || 0,
+      note: note || null,
+    },
+    include: {
+      task: { include: { project: true } },
+      user: { select: { id: true, name: true, color: true } },
+    },
   })
-
-  const entry = existing
-    ? await prisma.timeEntry.update({
-        where: { id: existing.id },
-        data: { hours: hours || 0, minutes: minutes || 0, note: note || null },
-        include: {
-          task: { include: { project: true } },
-          user: { select: { id: true, name: true, color: true } },
-        },
-      })
-    : await prisma.timeEntry.create({
-        data: {
-          taskId,
-          userId: session.user.id,
-          date: parsedDate,
-          hours: hours || 0,
-          minutes: minutes || 0,
-          note: note || null,
-        },
-        include: {
-          task: { include: { project: true } },
-          user: { select: { id: true, name: true, color: true } },
-        },
-      })
 
   return NextResponse.json(entry, { status: 201 })
 }
