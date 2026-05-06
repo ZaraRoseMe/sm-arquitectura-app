@@ -58,35 +58,49 @@ interface QuickEntryModalProps {
   onDeleted?: (id: string) => void
 }
 
-function QuickEntryModal({ taskId, taskName, projectName, dateStr, existingEntry, onClose, onSaved, onDeleted }: QuickEntryModalProps) {
-  const [hours, setHours] = useState(existingEntry?.hours ?? 0)
-  const [minutes, setMinutes] = useState(existingEntry?.minutes ?? 0)
-  const [note, setNote] = useState(existingEntry?.note ?? '')
+function QuickEntryModal({ taskId, taskName, projectName, dateStr, editEntry, onClose, onSaved, onDeleted }: {
+  taskId: string; taskName: string; projectName: string; dateStr: string
+  editEntry?: { id: string; hours: number; minutes: number; note?: string }
+  onClose: () => void
+  onSaved: (entry: any, isEdit: boolean) => void
+  onDeleted?: (id: string) => void
+}) {
+  const [hours, setHours] = useState(editEntry?.hours ?? 0)
+  const [minutes, setMinutes] = useState(editEntry?.minutes ?? 0)
+  const [note, setNote] = useState(editEntry?.note ?? '')
   const [loading, setLoading] = useState(false)
+  const isEdit = !!editEntry
 
   const dateLabel = format(new Date(dateStr + 'T12:00:00'), "EEEE d 'de' MMMM", { locale: es })
 
   async function handleSave() {
     if (hours === 0 && minutes === 0) { toast.error('Ingresa al menos 1 minuto'); return }
+    if (hours > 24) { toast.error('Máximo 24 horas por entrada'); return }
     setLoading(true)
     try {
-      const res = await fetch('/api/time-entries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId, date: dateStr, hours, minutes, note: note || null }),
-      })
+      const res = isEdit
+        ? await fetch(`/api/time-entries/${editEntry!.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hours, minutes, note: note || null }),
+          })
+        : await fetch('/api/time-entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId, date: dateStr, hours, minutes, note: note || null }),
+          })
       const data = await res.json()
-      toast.success('Tiempo guardado')
-      onSaved(data)
+      toast.success(isEdit ? 'Entrada actualizada' : 'Tiempo guardado')
+      onSaved(data, isEdit)
     } catch { toast.error('Error al guardar') }
     setLoading(false)
   }
 
   async function handleDelete() {
-    if (!existingEntry || !onDeleted) return
+    if (!editEntry || !onDeleted) return
     if (!confirm('¿Eliminar este registro?')) return
-    const res = await fetch(`/api/time-entries/${existingEntry.id}`, { method: 'DELETE' })
-    if (res.ok) { toast.success('Eliminado'); onDeleted(existingEntry.id) }
+    const res = await fetch(`/api/time-entries/${editEntry.id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Eliminado'); onDeleted(editEntry.id) }
     else toast.error('Error al eliminar')
   }
 
@@ -96,34 +110,52 @@ function QuickEntryModal({ taskId, taskName, projectName, dateStr, existingEntry
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-neutral-800">
           <div>
-            <h2 className="font-semibold text-gray-900 dark:text-white text-sm capitalize">{dateLabel}</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white text-sm capitalize">
+              {isEdit ? 'Editar entrada' : dateLabel}
+            </h2>
             <p className="text-xs text-gray-400 truncate max-w-[200px]">{taskName} · {projectName}</p>
+            {isEdit && <p className="text-xs text-gray-400 capitalize">{dateLabel}</p>}
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800">
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="p-5 space-y-4">
-          {/* Inputs de tiempo */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <input type="number" min={0} max={23} className="w-14 input text-center text-sm py-1.5"
-                value={hours} onChange={e => setHours(Math.max(0, parseInt(e.target.value) || 0))} />
-              <span className="text-xs text-gray-500">hrs</span>
+          {/* Inputs grandes y claros */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-gray-500 mb-1 block">Horas <span className="text-gray-400">(máx. 24)</span></label>
+              <input
+                type="number" min={0} max={24}
+                className="input text-center font-bold"
+                style={{ fontSize: 28, height: 56 }}
+                value={hours}
+                onChange={e => {
+                  const v = parseInt(e.target.value) || 0
+                  setHours(Math.min(24, Math.max(0, v)))
+                }} />
             </div>
-            <span className="text-gray-400">:</span>
-            <div className="flex items-center gap-1.5">
-              <input type="number" min={0} max={59} className="w-14 input text-center text-sm py-1.5"
-                value={minutes} onChange={e => setMinutes(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))} />
-              <span className="text-xs text-gray-500">min</span>
+            <span className="text-2xl text-gray-300 mt-5">:</span>
+            <div className="flex-1">
+              <label className="text-xs text-gray-500 mb-1 block">Minutos</label>
+              <input
+                type="number" min={0} max={59}
+                className="input text-center font-bold"
+                style={{ fontSize: 28, height: 56 }}
+                value={minutes}
+                onChange={e => {
+                  const v = parseInt(e.target.value) || 0
+                  setMinutes(Math.min(59, Math.max(0, v)))
+                }} />
             </div>
           </div>
-          {/* Botones rápidos */}
+
+          {/* Accesos rápidos */}
           <div className="flex gap-1.5 flex-wrap">
-            {[[0,30],[1,0],[2,0],[4,0],[8,0]].map(([h,m]) => (
+            {[[0,30],[1,0],[2,0],[4,0],[8,0],[9,0]].map(([h,m]) => (
               <button key={`${h}${m}`} type="button"
                 onClick={() => { setHours(h); setMinutes(m) }}
-                className={cn('text-xs px-2 py-1 rounded-lg transition-colors',
+                className={cn('text-xs px-2.5 py-1.5 rounded-lg transition-colors font-medium',
                   hours === h && minutes === m
                     ? 'bg-brand-600 text-white'
                     : 'bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-brand-50 hover:text-brand-600 border border-gray-200 dark:border-neutral-700')}>
@@ -131,22 +163,27 @@ function QuickEntryModal({ taskId, taskName, projectName, dateStr, existingEntry
               </button>
             ))}
           </div>
+
           {/* Nota */}
           <textarea className="input resize-none text-sm" rows={2}
             value={note} onChange={e => setNote(e.target.value)}
-            placeholder="¿Qué hiciste? (opcional)" />
+            placeholder="¿Qué hiciste? (aparece como comentario)" />
+
           {/* Acciones */}
           <div className="flex gap-2">
-            {existingEntry && onDeleted && (
-              <button onClick={handleDelete} className="btn-secondary text-red-500 hover:text-red-600 text-sm px-3">
+            {isEdit && onDeleted && (
+              <button onClick={handleDelete}
+                className="btn-secondary text-red-500 hover:text-red-600 text-sm px-3">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
             <button onClick={onClose} className="flex-1 btn-secondary text-sm">Cancelar</button>
             <button onClick={handleSave} disabled={loading}
               className="flex-1 btn-primary flex items-center justify-center gap-1.5 text-sm">
-              {loading ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              Guardar
+              {loading
+                ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <Check className="w-3.5 h-3.5" />}
+              {isEdit ? 'Actualizar' : 'Guardar'}
             </button>
           </div>
         </div>
@@ -252,7 +289,10 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   const [userFilter, setUserFilter] = useState('ALL')
   const [groupMode, setGroupMode] = useState<GroupMode>('project')
   // Modal de registro rápido (vista semanal)
-  const [quickEntry, setQuickEntry] = useState<{ taskId: string; taskName: string; projectName: string; dateStr: string } | null>(null)
+  const [quickEntry, setQuickEntry] = useState<{
+    taskId: string; taskName: string; projectName: string; dateStr: string
+    editEntry?: { id: string; hours: number; minutes: number; note?: string }
+  } | null>(null)
 
   // Rango de la semana actual (lunes a domingo)
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 })
@@ -363,19 +403,17 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
     else toast.error('Error al eliminar')
   }
 
-  function handleSavedQuickEntry(entry: any) {
-    setEntries(prev => {
-      const ds = toDateStr(entry.date)
-      const taskId = entry.taskId || entry.task?.id
-      // Quitar cualquier entry del mismo día + tarea + usuario
-      const filtered = prev.filter(e => {
-        const sameDay = toDateStr(e.date) === ds
-        const sameTask = (e.taskId || e.task?.id) === taskId
-        const sameUser = e.userId === entry.userId
-        return !(sameDay && sameTask && sameUser)
-      })
-      return [...filtered, entry]
-    })
+  function handleSavedQuickEntry(entry: any, isEdit: boolean) {
+    if (isEdit) {
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, ...entry } : e))
+    } else {
+      setEntries(prev => [...prev, entry])
+    }
+    setQuickEntry(null)
+  }
+
+  function handleDeletedQuickEntry(id: string) {
+    setEntries(prev => prev.filter(e => e.id !== id))
     setQuickEntry(null)
   }
 
@@ -440,10 +478,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
           taskName={quickEntry.taskName}
           projectName={quickEntry.projectName}
           dateStr={quickEntry.dateStr}
-          existingEntry={(() => {
-            const e = getWeekEntryFor(quickEntry.taskId, new Date(quickEntry.dateStr + 'T12:00:00'))
-            return e ? { id: e.id, hours: e.hours, minutes: e.minutes, note: e.note } : undefined
-          })()}
+          editEntry={quickEntry.editEntry}
           onClose={() => setQuickEntry(null)}
           onSaved={handleSavedQuickEntry}
           onDeleted={handleDeletedQuickEntry}
@@ -573,28 +608,50 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
                       </div>
                       {/* Celdas por día */}
                       {weekDays.map(day => {
-                        const dayMins = getWeekTotalMins(task.id, day)
-                        const hasEntry = dayMins > 0
+                        const ds = dateStrFromDate(day)
+                        const dayEntries = entries.filter(e => e.task?.id === task.id && toDateStr(e.date) === ds && e.userId === currentUserId)
+                        const dayMins = totalMins(dayEntries)
                         const weekend = isWeekend(day)
                         const isToday = isSameDay(day, new Date())
-                        const ds = dateStrFromDate(day)
+
                         return (
                           <div key={day.toISOString()}
-                            onClick={() => !weekend && setQuickEntry({ taskId: task.id, taskName: task.name, projectName: task.project?.name || '', dateStr: ds })}
-                            className={cn('flex-1 flex items-center justify-center border-r border-gray-100 dark:border-neutral-800 last:border-r-0 min-h-[52px] transition-colors',
-                              weekend ? 'bg-gray-50/50 dark:bg-neutral-800/20 cursor-default' :
-                              hasEntry ? 'cursor-pointer hover:opacity-80' :
-                              'cursor-pointer hover:bg-brand-50/40 dark:hover:bg-brand-950/10 group'
+                            className={cn('flex-1 flex flex-col items-stretch border-r border-gray-100 dark:border-neutral-800 last:border-r-0 min-h-[52px] transition-colors p-1 gap-1',
+                              weekend ? 'bg-gray-50/50 dark:bg-neutral-800/20' : 'cursor-pointer'
                             )}
                             style={isToday ? { backgroundColor: '#6366F108' } : undefined}>
-                            {hasEntry ? (
-                              <span className="text-xs font-bold px-1.5 py-0.5 rounded-md"
-                                style={{ backgroundColor: `${task.project?.color || '#6366F1'}22`, color: task.project?.color || '#6366F1' }}>
-                                {minsToTime(dayMins)}
-                              </span>
-                            ) : !weekend ? (
-                              <span className="text-[10px] text-gray-300 dark:text-neutral-700 group-hover:text-brand-400 transition-colors">+</span>
-                            ) : null}
+
+                            {/* Entradas existentes */}
+                            {dayEntries.map(entry => (
+                              <div key={entry.id}
+                                onClick={() => setQuickEntry({
+                                  taskId: task.id, taskName: task.name,
+                                  projectName: task.project?.name || '', dateStr: ds,
+                                  editEntry: { id: entry.id, hours: entry.hours, minutes: entry.minutes, note: entry.note }
+                                })}
+                                className="flex flex-col items-center justify-center rounded px-1 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                                style={{ backgroundColor: `${task.project?.color || '#6366F1'}18` }}>
+                                <span className="text-[10px] font-bold leading-none"
+                                  style={{ color: task.project?.color || '#6366F1' }}>
+                                  {minsToTime(entry.hours * 60 + entry.minutes)}
+                                </span>
+                                {entry.note && (
+                                  <span className="text-[9px] text-gray-400 truncate w-full text-center leading-none mt-0.5">
+                                    {entry.note}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+
+                            {/* Botón + para agregar */}
+                            {!weekend && (
+                              <div
+                                onClick={() => setQuickEntry({ taskId: task.id, taskName: task.name, projectName: task.project?.name || '', dateStr: ds })}
+                                className="flex items-center justify-center rounded border border-dashed border-gray-200 dark:border-neutral-700 hover:border-brand-300 hover:bg-brand-50/30 transition-colors cursor-pointer"
+                                style={{ minHeight: 20 }}>
+                                <span className="text-[10px] text-gray-300 dark:text-neutral-700 hover:text-brand-400">+</span>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
