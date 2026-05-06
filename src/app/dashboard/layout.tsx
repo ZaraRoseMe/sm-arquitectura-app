@@ -17,10 +17,28 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const userColor = (session.user as any).color as string
   const currentUserId = session.user.id as string
 
-  const users = await prisma.user.findMany({
-    select: { id: true, name: true, color: true },
-    orderBy: { name: 'asc' },
-  })
+  const [users, team] = await Promise.all([
+    prisma.user.findMany({
+      select: { id: true, name: true, color: true },
+      orderBy: { name: 'asc' },
+    }),
+    // Cargar el equipo si es coordinador o si es miembro de algún equipo
+    userRole === 'COORDINADOR'
+      ? prisma.team.findUnique({
+          where: { coordinatorId: currentUserId },
+          include: {
+            coordinator: { select: { id: true, name: true, color: true } },
+            members: { include: { user: { select: { id: true, name: true, color: true } } } },
+          },
+        })
+      : prisma.team.findFirst({
+          where: { members: { some: { userId: currentUserId } } },
+          include: {
+            coordinator: { select: { id: true, name: true, color: true } },
+            members: { include: { user: { select: { id: true, name: true, color: true } } } },
+          },
+        }),
+  ])
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-neutral-950 overflow-hidden">
@@ -39,7 +57,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
       <NotificationPoller />
-      <ChatPanel currentUserId={currentUserId} users={users} />
+      <ChatPanel
+        currentUserId={currentUserId}
+        users={users}
+        team={team as any}
+        userRole={userRole}
+      />
     </div>
   )
 }
