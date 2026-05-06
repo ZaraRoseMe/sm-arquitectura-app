@@ -55,6 +55,110 @@ function flattenProjects(projects: any[], depth = 0): { project: any; depth: num
   ])
 }
 
+// ─── Dropdown jerárquico de proyectos ────────────────────────────────────────
+function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
+  project: any; depth: number; selectedId: string
+  onSelect: (id: string, name: string) => void; onClose: () => void
+}) {
+  const [expanded, setExpanded] = useState(depth === 0)
+  const hasChildren = (project.children || []).length > 0
+  const isSelected = project.id === selectedId
+
+  return (
+    <div>
+      <div
+        className={cn(
+          'flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors rounded-lg mx-1',
+          isSelected ? 'bg-brand-50 dark:bg-brand-950/30' : 'hover:bg-gray-50 dark:hover:bg-neutral-800'
+        )}
+        style={{ paddingLeft: 12 + depth * 16 }}>
+        {/* Toggle expand */}
+        <button type="button"
+          className="w-4 h-4 flex items-center justify-center flex-shrink-0"
+          onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
+          {hasChildren
+            ? expanded
+              ? <ChevronDown className="w-3 h-3 text-gray-400" />
+              : <ChevronRight className="w-3 h-3 text-gray-400" />
+            : <div className="w-1 h-1 rounded-full bg-gray-300 mx-auto" />
+          }
+        </button>
+        {/* Color dot */}
+        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
+        {/* Name */}
+        <span
+          className={cn('flex-1 text-sm truncate',
+            isSelected ? 'font-semibold text-brand-700 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
+          )}
+          onClick={() => { onSelect(project.id, project.name); onClose() }}>
+          {project.name}
+        </span>
+        {isSelected && <Check className="w-3.5 h-3.5 text-brand-600 flex-shrink-0" />}
+      </div>
+      {expanded && hasChildren && (
+        <div>
+          {(project.children || []).map((child: any) => (
+            <ProjectTreeNode key={child.id} project={child} depth={depth + 1}
+              selectedId={selectedId} onSelect={onSelect} onClose={onClose} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProjectTreeSelect({ projects, value, onChange }: {
+  projects: any[]; value: string; onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [selectedName, setSelectedName] = useState('')
+
+  // Buscar nombre del proyecto seleccionado al montar
+  useEffect(() => {
+    if (!value) { setSelectedName(''); return }
+    function findName(ps: any[]): string {
+      for (const p of ps) {
+        if (p.id === value) return p.name
+        const found = findName(p.children || [])
+        if (found) return found
+      }
+      return ''
+    }
+    setSelectedName(findName(projects))
+  }, [value, projects])
+
+  return (
+    <div className="relative">
+      <button type="button"
+        onClick={() => setOpen(v => !v)}
+        className={cn('input w-full flex items-center justify-between text-left',
+          !selectedName && 'text-gray-400')}>
+        <span className="truncate">{selectedName || 'Seleccionar proyecto'}</span>
+        <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          {/* Dropdown */}
+          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-xl shadow-xl max-h-64 overflow-y-auto py-1">
+            {projects.length === 0
+              ? <p className="text-sm text-gray-400 px-4 py-3 text-center">No hay proyectos</p>
+              : projects.map(p => (
+                <ProjectTreeNode key={p.id} project={p} depth={0}
+                  selectedId={value}
+                  onSelect={(id, name) => { onChange(id); setSelectedName(name) }}
+                  onClose={() => setOpen(false)} />
+              ))
+            }
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function TaskModal({ task, projects, users, isAdmin, currentUserId, currentUserName, onClose, onSave }: TaskModalProps) {
   const existingEntries = parseDescriptionEntries((task as any)?.description)
 
@@ -187,7 +291,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   })
 
   const selectedUser = users.find(u => u.id === form.userId)
-  const flatProjects = flattenProjects(projects)
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -240,18 +343,14 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
             <p className="text-xs text-gray-400 mt-1">Cada entrada queda registrada con fecha y hora.</p>
           </div>
 
-          {/* Project — selector jerárquico con indentación */}
+          {/* Project — dropdown jerárquico custom */}
           <div>
             <label className="label">Proyecto *</label>
-            <select className="input" value={form.projectId}
-              onChange={(e) => setForm({ ...form, projectId: e.target.value })} required>
-              <option value="">Seleccionar proyecto</option>
-              {flatProjects.map(({ project: p, depth }) => (
-                <option key={p.id} value={p.id} style={{ paddingLeft: depth * 16 }}>
-                  {depth > 0 ? '\u00A0'.repeat(depth * 3) + '└ ' : ''}{p.name}
-                </option>
-              ))}
-            </select>
+            <ProjectTreeSelect
+              projects={projects}
+              value={form.projectId}
+              onChange={(id) => setForm({ ...form, projectId: id })}
+            />
           </div>
 
           {/* Assign */}
