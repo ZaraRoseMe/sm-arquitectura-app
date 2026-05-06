@@ -25,6 +25,8 @@ export default function Header({ userName, userEmail, userRole, userColor, curre
   const avatarColor = userColor || '#6366F1'
   const initials = getInitials(userName || '')
 
+  const roleLabel = userRole === 'ADMIN' ? 'Admin' : userRole === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'
+
   async function handleNotificationClick(notif: any) {
     markNotificationRead(notif.id)
     await fetch('/api/notifications', {
@@ -104,7 +106,7 @@ export default function Header({ userName, userEmail, userRole, userColor, curre
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-gray-900 dark:text-white leading-none">{userName}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{userRole === 'ADMIN' ? 'Admin' : 'Colaborador'}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{roleLabel}</p>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
           </button>
