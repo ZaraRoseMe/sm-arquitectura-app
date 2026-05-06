@@ -13,7 +13,7 @@ export default async function TasksPage() {
   const isCoordinador = role === 'COORDINADOR'
   const isColaborador = role === 'COLABORADOR'
 
-  // Obtener equipo del coordinador si aplica
+  // Obtener todos los miembros del equipo del coordinador (sin importar su rol)
   let teamMemberIds: string[] = []
   if (isCoordinador) {
     const team = await prisma.team.findUnique({
@@ -24,7 +24,7 @@ export default async function TasksPage() {
   }
 
   const [tasks, projects, users] = await Promise.all([
-    // ADMIN: ve todas | COORDINADOR: sus colaboradores + él | COLABORADOR: solo las suyas
+    // ADMIN: ve todas | COORDINADOR: todas las de sus colaboradores | COLABORADOR: solo las suyas
     prisma.task.findMany({
       where: isAdmin
         ? {}
