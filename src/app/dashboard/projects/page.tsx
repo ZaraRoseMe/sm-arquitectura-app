@@ -58,7 +58,7 @@ export default async function ProjectsPage() {
   const [projects, users, teams] = await Promise.all([
     isCoordinador
       ? prisma.project.findMany({
-          where: { parentId: null, team: { coordinatorId: session.user.id } },
+          where: { team: { coordinatorId: session.user.id } },
           include: projectInclude,
           orderBy: { name: 'asc' },
         })
