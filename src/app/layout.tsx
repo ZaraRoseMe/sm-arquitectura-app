@@ -6,6 +6,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'SM Arquitectura — Gestión de Proyectos',
   description: 'Plataforma de gestión de proyectos y tiempos para SM Arquitectura',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

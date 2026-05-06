@@ -10,7 +10,7 @@ export async function GET() {
   const notifications = await prisma.notification.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
-    take: 20,
+    take: 30,
   })
 
   return NextResponse.json(notifications)
@@ -20,19 +20,15 @@ export async function PATCH(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json()
-  const { markAllRead, id } = body
+  const { id, all } = await req.json()
 
-  if (markAllRead) {
+  if (all) {
     await prisma.notification.updateMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, read: false },
       data: { read: true },
     })
   } else if (id) {
-    await prisma.notification.update({
-      where: { id },
-      data: { read: true },
-    })
+    await prisma.notification.update({ where: { id }, data: { read: true } })
   }
 
   return NextResponse.json({ success: true })

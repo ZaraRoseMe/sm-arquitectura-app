@@ -1,27 +1,42 @@
 // src/lib/utils.ts
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { format, differenceInDays, isAfter, isBefore, isWithinInterval } from 'date-fns'
+import { format, differenceInDays, isAfter, isWithinInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Parse any date safely avoiding UTC timezone shift
+// Handles: Date objects, ISO strings, YYYY-MM-DD strings
+export function parseDate(date: Date | string): Date {
+  // Always extract YYYY-MM-DD and build local date — never trust timezone conversion
+  let str: string
+  if (date instanceof Date) {
+    // Date objects from JSON may be UTC-shifted — extract date string via toISOString
+    str = date.toISOString().substring(0, 10)
+  } else {
+    str = String(date).substring(0, 10)
+  }
+  const [y, m, d] = str.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 export function formatDate(date: Date | string, fmt = 'dd MMM yyyy') {
-  return format(new Date(date), fmt, { locale: es })
+  return format(parseDate(date), fmt, { locale: es })
 }
 
 export function formatDateInput(date: Date | string) {
-  return format(new Date(date), 'yyyy-MM-dd')
+  return format(parseDate(date), 'yyyy-MM-dd')
 }
 
 export function daysBetween(start: Date | string, end: Date | string) {
-  return differenceInDays(new Date(end), new Date(start))
+  return differenceInDays(parseDate(end), parseDate(start))
 }
 
 export function isOverdue(endDate: Date | string) {
-  return isAfter(new Date(), new Date(endDate))
+  return isAfter(new Date(), parseDate(endDate))
 }
 
 export function detectConflicts(
@@ -30,20 +45,16 @@ export function detectConflicts(
 ) {
   const conflicts = existingTasks.filter((task) => {
     if (task.userId !== newTask.userId) return false
-
-    const taskStart = new Date(task.startDate)
-    const taskEnd = new Date(task.endDate)
-    const newStart = new Date(newTask.startDate)
-    const newEnd = new Date(newTask.endDate)
-
-    // Check overlap
+    const taskStart = parseDate(task.startDate)
+    const taskEnd = parseDate(task.endDate)
+    const newStart = parseDate(newTask.startDate)
+    const newEnd = parseDate(newTask.endDate)
     return (
-      (isWithinInterval(newStart, { start: taskStart, end: taskEnd }) ||
-        isWithinInterval(newEnd, { start: taskStart, end: taskEnd }) ||
-        isWithinInterval(taskStart, { start: newStart, end: newEnd }))
+      isWithinInterval(newStart, { start: taskStart, end: taskEnd }) ||
+      isWithinInterval(newEnd, { start: taskStart, end: taskEnd }) ||
+      isWithinInterval(taskStart, { start: newStart, end: newEnd })
     )
   })
-
   return conflicts
 }
 

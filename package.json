@@ -20,11 +20,16 @@
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "^11.15.0",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.468.0",
+<<<<<<< vercel/react-server-components-cve-vu-q0zeyk
     "next": "15.3.8",
+=======
+    "next": "^15.3.2",
+>>>>>>> main
     "next-auth": "^5.0.0-beta.25",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -37,8 +42,10 @@
     "@types/node": "^20.17.9",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.5.0",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^8.57.1",
-    "eslint-config-next": "15.3.1",
+    "eslint-config-next": "15.3.2",
     "postcss": "^8.4.49",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.16",

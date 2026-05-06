@@ -12,7 +12,6 @@ export default async function DashboardPage() {
   const session = await auth()
   const isAdmin = session?.user.role === 'ADMIN'
 
-  // Fetch data based on role
   const whereClause = isAdmin ? {} : { userId: session?.user.id }
 
   const [projects, tasks, users] = await Promise.all([
@@ -34,7 +33,10 @@ export default async function DashboardPage() {
     }),
     isAdmin
       ? prisma.user.findMany({
-          include: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
             tasks: { where: { status: { not: 'TERMINADO' } } },
             _count: { select: { tasks: true } },
           },
@@ -42,7 +44,6 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
   ])
 
-  // Calculate stats
   const allTasks = isAdmin
     ? await prisma.task.findMany()
     : tasks
@@ -60,7 +61,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Welcome */}
       <div>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
           Buenos días, {session?.user.name?.split(' ')[0]} 👋
@@ -70,7 +70,6 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Proyectos activos"
@@ -102,7 +101,6 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Main content */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <RecentTasks tasks={tasks} />
@@ -110,7 +108,7 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <ProjectsList projects={projects} />
           {isAdmin && users.length > 0 && (
-            <WorkloadChart users={users} />
+            <WorkloadChart users={users as any} />
           )}
         </div>
       </div>
