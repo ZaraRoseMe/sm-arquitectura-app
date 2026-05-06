@@ -23,7 +23,7 @@ interface WorkDay {
 
 interface TaskModalProps {
   task: Task | null
-  projects: Project[]
+  projects: any[]   // árbol de proyectos con children
   users: User[]
   isAdmin: boolean
   currentUserId: string
@@ -45,6 +45,14 @@ function parseDescriptionEntries(raw?: string | null): DescriptionEntry[] {
 
 function dateStr(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+// Aplana el árbol de proyectos con profundidad para el selector jerárquico
+function flattenProjects(projects: any[], depth = 0): { project: any; depth: number }[] {
+  return projects.flatMap(p => [
+    { project: p, depth },
+    ...flattenProjects(p.children || [], depth + 1),
+  ])
 }
 
 export default function TaskModal({ task, projects, users, isAdmin, currentUserId, currentUserName, onClose, onSave }: TaskModalProps) {
@@ -69,21 +77,18 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   const [workDays, setWorkDays] = useState<Record<string, WorkDay>>({})
   const [editingWorkDay, setEditingWorkDay] = useState<string | null>(null)
   const [existingPlans, setExistingPlans] = useState<any[]>([])
-  const [otherUserPlans, setOtherUserPlans] = useState<any[]>([]) // busy days of selected user
+  const [otherUserPlans, setOtherUserPlans] = useState<any[]>([])
 
-  // Load existing work plans when editing a task or when user changes
   useEffect(() => {
     const uid = form.userId
     if (!uid || !showWorkPlan) return
 
-    // Load this task's existing plans + user's other plans (to show availability)
     Promise.all([
       task ? fetch(`/api/work-plans?userId=${uid}`).then(r => r.json()) : Promise.resolve([]),
     ]).then(([allUserPlans]) => {
       if (task) {
         const thisTaskPlans = allUserPlans.filter((p: any) => p.taskId === task.id)
         const otherPlans = allUserPlans.filter((p: any) => p.taskId !== task.id)
-        // Pre-fill workDays with existing plans for this task
         const existing: Record<string, WorkDay> = {}
         thisTaskPlans.forEach((p: any) => {
           const key = new Date(p.date).toISOString().substring(0, 10)
@@ -145,26 +150,18 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
 
   async function saveWorkPlans(taskId: string) {
     if (Object.keys(workDays).length === 0) return
-    const selectedUser = form.userId
-
-    // Delete existing plans for this task first (if editing)
     if (existingPlans.length > 0) {
       await Promise.all(existingPlans.map(p =>
         fetch(`/api/work-plans/${p.id}`, { method: 'DELETE' })
       ))
     }
-
-    // Create new plans
     await Promise.all(Object.values(workDays).map(day =>
       fetch('/api/work-plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          taskId,
-          userId: selectedUser,
-          date: day.date,
-          hours: day.hours,
-          minutes: day.minutes,
+          taskId, userId: form.userId,
+          date: day.date, hours: day.hours, minutes: day.minutes,
         }),
       })
     ))
@@ -177,9 +174,8 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
       ...form,
       description: entries.length > 0 ? JSON.stringify(entries) : '',
     })
-    // Save work plans if admin programmed days
     if (success && isAdmin && Object.keys(workDays).length > 0) {
-      const taskId = task?.id || '' // for new tasks we'd need the returned id
+      const taskId = task?.id || ''
       if (taskId) await saveWorkPlans(taskId)
     }
     setLoading(false)
@@ -191,6 +187,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   })
 
   const selectedUser = users.find(u => u.id === form.userId)
+  const flatProjects = flattenProjects(projects)
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -243,12 +240,17 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
             <p className="text-xs text-gray-400 mt-1">Cada entrada queda registrada con fecha y hora.</p>
           </div>
 
-          {/* Project */}
+          {/* Project — selector jerárquico con indentación */}
           <div>
             <label className="label">Proyecto *</label>
-            <select className="input" value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} required>
+            <select className="input" value={form.projectId}
+              onChange={(e) => setForm({ ...form, projectId: e.target.value })} required>
               <option value="">Seleccionar proyecto</option>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {flatProjects.map(({ project: p, depth }) => (
+                <option key={p.id} value={p.id} style={{ paddingLeft: depth * 16 }}>
+                  {depth > 0 ? '\u00A0'.repeat(depth * 3) + '└ ' : ''}{p.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -259,7 +261,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
               <select className="input" value={form.userId}
                 onChange={(e) => { setForm({ ...form, userId: e.target.value }); setWorkDays({}); setEditingWorkDay(null) }} required>
                 <option value="">Seleccionar colaborador</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role === 'ADMIN' ? 'Admin' : 'Colaborador'})</option>)}
+                {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role === 'ADMIN' ? 'Admin' : u.role === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'})</option>)}
               </select>
             </div>
           )}
@@ -297,7 +299,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
             </div>
           </div>
 
-          {/* Work Plan Calendar — solo admin con usuario seleccionado */}
+          {/* Work Plan Calendar */}
           {isAdmin && form.userId && (
             <div className="border border-gray-100 dark:border-neutral-800 rounded-xl overflow-hidden">
               <button type="button"
@@ -317,7 +319,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
 
               {showWorkPlan && (
                 <div className="p-4 border-t border-gray-100 dark:border-neutral-800 space-y-3">
-                  {/* Legend */}
                   <div className="flex items-center gap-4 text-[10px] text-gray-500">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-sm bg-emerald-500 opacity-80" />
@@ -338,7 +339,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
                     )}
                   </div>
 
-                  {/* Calendar nav */}
                   <div className="flex items-center justify-between">
                     <button type="button" onClick={() => setWorkCalMonth(subMonths(workCalMonth, 1))}
                       className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-800">
@@ -353,14 +353,12 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
                     </button>
                   </div>
 
-                  {/* Day headers */}
                   <div className="grid grid-cols-7 gap-0.5">
                     {['L','M','X','J','V','S','D'].map(d => (
                       <div key={d} className="text-center text-[9px] font-semibold text-gray-400 py-0.5">{d}</div>
                     ))}
                   </div>
 
-                  {/* Calendar */}
                   <div className="grid grid-cols-7 gap-0.5">
                     {calDays.map(day => {
                       const key = dateStr(day)
@@ -402,7 +400,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
                     })}
                   </div>
 
-                  {/* Day editor */}
                   {editingWorkDay && workDays[editingWorkDay] && (
                     <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 rounded-xl p-3 space-y-2">
                       <div className="flex items-center justify-between">
@@ -422,7 +419,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
                           onChange={e => updateWorkDay(editingWorkDay, 'minutes', Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))} />
                         <span className="text-xs text-gray-400">min</span>
                         <div className="flex gap-1 ml-1">
-                          {[[4,0],[8,0]].map(([h,m]) => (
+                          {[[4,0],[8,0],[9,0]].map(([h,m]) => (
                             <button key={`${h}${m}`} type="button"
                               onClick={() => { updateWorkDay(editingWorkDay, 'hours', h); updateWorkDay(editingWorkDay, 'minutes', m) }}
                               className="text-[10px] px-1.5 py-0.5 rounded bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 text-gray-600 hover:border-emerald-400">
