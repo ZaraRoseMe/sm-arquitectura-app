@@ -13,7 +13,11 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const projects = await prisma.project.findMany({
-    include: { tasks: { include: { user: true } }, _count: { select: { tasks: true } } },
+    include: {
+      tasks: { include: { user: true } },
+      _count: { select: { tasks: true } },
+      team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+    },
     orderBy: { name: 'asc' },
   })
 
@@ -27,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { name, description, startDate, endDate, color } = body
+  const { name, description, startDate, endDate, color, teamId } = body
 
   if (!name || !startDate || !endDate) {
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
@@ -40,8 +44,13 @@ export async function POST(req: NextRequest) {
       startDate: parseLocalDate(startDate),
       endDate: parseLocalDate(endDate),
       color: color || '#3B82F6',
+      ...(teamId ? { teamId } : {}),
     },
-    include: { tasks: { include: { user: true } }, _count: { select: { tasks: true } } },
+    include: {
+      tasks: { include: { user: true } },
+      _count: { select: { tasks: true } },
+      team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+    },
   })
 
   return NextResponse.json(project, { status: 201 })
