@@ -60,7 +60,7 @@ function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
   project: any; depth: number; selectedId: string
   onSelect: (id: string, name: string) => void; onClose: () => void
 }) {
-  const [expanded, setExpanded] = useState(depth === 0)
+  const [expanded, setExpanded] = useState(false)  // todos colapsados por default
   const hasChildren = (project.children || []).length > 0
   const isSelected = project.id === selectedId
 
