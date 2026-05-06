@@ -9,7 +9,10 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const { id } = await params
   const project = await prisma.project.findUnique({
     where: { id },
-    include: { tasks: { include: { user: true, pauseLogs: true } } },
+    include: {
+      tasks: { include: { user: true, pauseLogs: true } },
+      team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+    },
   })
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json(project)
@@ -22,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   const { id } = await params
   const body = await req.json()
-  const { name, description, startDate, endDate, color } = body
+  const { name, description, startDate, endDate, color, teamId } = body
 
   const project = await prisma.project.update({
     where: { id },
@@ -32,8 +35,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...(startDate && { startDate: new Date(`${startDate}T12:00:00.000Z`) }),
       ...(endDate && { endDate: new Date(`${endDate}T12:00:00.000Z`) }),
       ...(color && { color }),
+      // teamId puede ser string (asignar) o null (desasignar)
+      ...('teamId' in body && { teamId: teamId || null }),
     },
-    include: { tasks: { include: { user: true, pauseLogs: true } } },
+    include: {
+      tasks: { include: { user: true, pauseLogs: true } },
+      team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+    },
   })
   return NextResponse.json(project)
 }
