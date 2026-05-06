@@ -42,14 +42,14 @@ export default function TasksClient({
   // Coordinador puede editar tareas de sus colaboradores
   // Colaborador solo puede cambiar estado de sus tareas y crear propias
   const canManageTask = (task: any) => {
-    if (isAdmin) return false // admin ve pero no mueve tareas de otros
-    if (isCoordinador) return true // coordinador puede gestionar las de su equipo
-    if (isColaborador) return task.userId === currentUserId // solo las propias
+    if (isAdmin) return true
+    if (isCoordinador) return true
+    if (isColaborador) return task.userId === currentUserId
     return false
   }
 
   const canEditTask = (task: any) => {
-    if (isAdmin) return false
+    if (isAdmin) return true
     if (isCoordinador) return true
     if (isColaborador) return task.userId === currentUserId
     return false
@@ -158,13 +158,7 @@ export default function TasksClient({
         )}
       </div>
 
-      {/* Aviso para admin — solo lectura */}
-      {isAdmin && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl text-xs text-amber-700 dark:text-amber-400">
-          <span>👁</span>
-          <span>Estás en modo visualización — los coordinadores gestionan las tareas de sus equipos.</span>
-        </div>
-      )}
+      
 
       <div className="flex flex-wrap gap-3">
         <div className="relative">
