@@ -1,7 +1,8 @@
 'use client'
 // src/components/users/UserModal.tsx
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Users } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 const PRESET_COLORS = [
@@ -23,6 +24,7 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
     password: '',
     role: user?.role || 'COLABORADOR',
     color: user?.color || '#6366F1',
+    teamName: user?.ledTeam?.name || '',
   })
   const [loading, setLoading] = useState(false)
 
@@ -35,6 +37,7 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
 
     const body: any = { ...form }
     if (!body.password) delete body.password
+    if (body.role !== 'COORDINADOR') delete body.teamName
 
     const res = await fetch(url, {
       method,
@@ -53,12 +56,18 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
     setLoading(false)
   }
 
+  const isCoordinador = form.role === 'COORDINADOR'
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md animate-slide-up" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md animate-slide-up"
+        onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-neutral-800">
-          <h2 className="font-semibold text-gray-900 dark:text-white">{user ? 'Editar usuario' : 'Nuevo usuario'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
+          <h2 className="font-semibold text-gray-900 dark:text-white">
+            {user ? 'Editar usuario' : 'Nuevo usuario'}
+          </h2>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -67,51 +76,68 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
           {/* Username */}
           <div>
             <label className="label">Nombre de usuario *</label>
-            <input
-              className="input"
+            <input className="input"
               value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/\s/g, '_') })}
+              onChange={e => setForm({ ...form, username: e.target.value.toLowerCase().replace(/\s/g, '_') })}
               placeholder="ej: ana_garcia"
               required
-              disabled={!!user} // no se puede cambiar el username una vez creado
+              disabled={!!user}
             />
             {!user && <p className="text-xs text-gray-400 mt-1">Solo minúsculas y guiones bajos. No se puede cambiar después.</p>}
           </div>
 
-          {/* Display name */}
+          {/* Nombre completo */}
           <div>
             <label className="label">Nombre completo *</label>
-            <input
-              className="input"
+            <input className="input"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              onChange={e => setForm({ ...form, name: e.target.value })}
               placeholder="Ej: Ana García"
               required
             />
           </div>
 
-          {/* Password */}
+          {/* Contraseña */}
           <div>
             <label className="label">{user ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña *'}</label>
-            <input
-              type="password"
-              className="input"
+            <input type="password" className="input"
               value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              onChange={e => setForm({ ...form, password: e.target.value })}
               placeholder="••••••••"
               required={!user}
               minLength={6}
             />
           </div>
 
-          {/* Role */}
+          {/* Rol */}
           <div>
             <label className="label">Rol</label>
-            <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as any })}>
+            <select className="input" value={form.role}
+              onChange={e => setForm({ ...form, role: e.target.value as any })}>
               <option value="COLABORADOR">Colaborador</option>
+              <option value="COORDINADOR">Coordinador</option>
               <option value="ADMIN">Administrador</option>
             </select>
           </div>
+
+          {/* Nombre del equipo — solo si es COORDINADOR */}
+          {isCoordinador && (
+            <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="w-4 h-4 text-indigo-500" />
+                <span className="text-sm font-medium text-indigo-700 dark:text-indigo-400">Equipo del coordinador</span>
+              </div>
+              <div>
+                <label className="label">Nombre del equipo</label>
+                <input className="input"
+                  value={form.teamName}
+                  onChange={e => setForm({ ...form, teamName: e.target.value })}
+                  placeholder={`Equipo de ${form.name || 'coordinador'}`}
+                />
+                <p className="text-xs text-gray-400 mt-1">El coordinador podrá editar este nombre después.</p>
+              </div>
+            </div>
+          )}
 
           {/* Color */}
           <div>
@@ -122,20 +148,23 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
                 {form.name ? form.name.charAt(0).toUpperCase() : '?'}
               </div>
               <div className="flex flex-wrap gap-2">
-                {PRESET_COLORS.map((c) => (
+                {PRESET_COLORS.map(c => (
                   <button key={c} type="button" onClick={() => setForm({ ...form, color: c })}
                     className="w-6 h-6 rounded-full transition-transform hover:scale-110 focus:outline-none"
                     style={{ backgroundColor: c, boxShadow: form.color === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : undefined }} />
                 ))}
-                <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
-                  className="w-6 h-6 rounded-full cursor-pointer border-0 p-0 bg-transparent" title="Color personalizado" />
+                <input type="color" value={form.color}
+                  onChange={e => setForm({ ...form, color: e.target.value })}
+                  className="w-6 h-6 rounded-full cursor-pointer border-0 p-0 bg-transparent"
+                  title="Color personalizado" />
               </div>
             </div>
           </div>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 btn-secondary">Cancelar</button>
-            <button type="submit" disabled={loading} className="flex-1 btn-primary flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading}
+              className="flex-1 btn-primary flex items-center justify-center gap-2">
               {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {user ? 'Actualizar' : 'Crear usuario'}
             </button>
