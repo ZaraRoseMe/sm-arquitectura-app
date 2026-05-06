@@ -75,7 +75,7 @@ function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
         {/* Toggle expand */}
         <button type="button"
           className="w-4 h-4 flex items-center justify-center flex-shrink-0"
-          onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}>
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setExpanded(v => !v) }}>
           {hasChildren
             ? expanded
               ? <ChevronDown className="w-3 h-3 text-gray-400" />
@@ -87,10 +87,10 @@ function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
         {/* Name */}
         <span
-          className={cn('flex-1 text-sm truncate',
+          className={cn('flex-1 text-sm truncate cursor-pointer',
             isSelected ? 'font-semibold text-brand-700 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
           )}
-          onClick={() => { onSelect(project.id, project.name); onClose() }}>
+          onClick={e => { e.preventDefault(); e.stopPropagation(); onSelect(project.id, project.name); onClose() }}>
           {project.name}
         </span>
         {isSelected && <Check className="w-3.5 h-3.5 text-brand-600 flex-shrink-0" />}
@@ -130,7 +130,7 @@ function ProjectTreeSelect({ projects, value, onChange }: {
   return (
     <div className="relative">
       <button type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(v => !v) }}
         className={cn('input w-full flex items-center justify-between text-left',
           !selectedName && 'text-gray-400')}>
         <span className="truncate">{selectedName || 'Seleccionar proyecto'}</span>
@@ -140,7 +140,7 @@ function ProjectTreeSelect({ projects, value, onChange }: {
       {open && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-10" onClick={(e) => { e.preventDefault(); setOpen(false) }} />
           {/* Dropdown */}
           <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-xl shadow-xl max-h-64 overflow-y-auto py-1">
             {projects.length === 0
