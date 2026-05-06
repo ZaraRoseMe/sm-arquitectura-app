@@ -4,6 +4,47 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import ProjectsClient from '@/components/projects/ProjectsClient'
 
+const projectInclude: any = {
+  tasks: { include: { user: true } },
+  _count: { select: { tasks: true } },
+  team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+  parent: { select: { id: true, name: true, color: true } },
+  children: {
+    orderBy: { name: 'asc' },
+    include: {
+      tasks: { include: { user: true } },
+      _count: { select: { tasks: true } },
+      team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
+      parent: { select: { id: true, name: true, color: true } },
+      children: {
+        orderBy: { name: 'asc' },
+        include: {
+          tasks: { include: { user: true } },
+          _count: { select: { tasks: true } },
+          parent: { select: { id: true, name: true, color: true } },
+          children: {
+            orderBy: { name: 'asc' },
+            include: {
+              tasks: { include: { user: true } },
+              _count: { select: { tasks: true } },
+              parent: { select: { id: true, name: true, color: true } },
+              children: {
+                orderBy: { name: 'asc' },
+                include: {
+                  tasks: { include: { user: true } },
+                  _count: { select: { tasks: true } },
+                  parent: { select: { id: true, name: true, color: true } },
+                  children: { include: { tasks: true, _count: { select: { tasks: true } } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+}
+
 export default async function ProjectsPage() {
   const session = await auth()
   if (!session) redirect('/login')
@@ -17,32 +58,21 @@ export default async function ProjectsPage() {
   const [projects, users, teams] = await Promise.all([
     isCoordinador
       ? prisma.project.findMany({
-          where: { team: { coordinatorId: session.user.id } },
-          include: {
-            tasks: { include: { user: true } },
-            _count: { select: { tasks: true } },
-          },
-          orderBy: { createdAt: 'desc' },
+          where: { parentId: null, team: { coordinatorId: session.user.id } },
+          include: projectInclude,
+          orderBy: { name: 'asc' },
         })
       : prisma.project.findMany({
-          include: {
-            tasks: { include: { user: true } },
-            _count: { select: { tasks: true } },
-            team: { include: { coordinator: { select: { id: true, name: true, color: true } } } },
-          },
-          orderBy: { createdAt: 'desc' },
+          where: { parentId: null },
+          include: projectInclude,
+          orderBy: { name: 'asc' },
         }),
-
     prisma.user.findMany({
       select: { id: true, name: true, email: true, role: true },
     }),
-
-    // Teams solo para admin (para asignar coordinadores)
     isAdmin
       ? prisma.team.findMany({
-          include: {
-            coordinator: { select: { id: true, name: true, color: true } },
-          },
+          include: { coordinator: { select: { id: true, name: true, color: true } } },
           orderBy: { name: 'asc' },
         })
       : Promise.resolve([]),
@@ -58,4 +88,3 @@ export default async function ProjectsPage() {
     />
   )
 }
-
