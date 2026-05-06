@@ -15,11 +15,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!userId) return NextResponse.json({ error: 'Falta userId' }, { status: 400 })
 
-  // Verificar que el usuario es COLABORADOR
+  // Verificar que el usuario existe
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
-  if (user.role !== 'COLABORADOR') {
-    return NextResponse.json({ error: 'Solo se pueden agregar colaboradores a un equipo' }, { status: 400 })
+
+  // No se puede agregar el coordinador a su propio equipo
+  const team = await prisma.team.findUnique({ where: { id: teamId } })
+  if (team?.coordinatorId === userId) {
+    return NextResponse.json({ error: 'El coordinador no puede ser miembro de su propio equipo' }, { status: 400 })
   }
 
   // Verificar que no esté ya en este equipo
