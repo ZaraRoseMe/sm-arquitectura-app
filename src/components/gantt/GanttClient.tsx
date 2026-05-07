@@ -596,7 +596,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                         {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                         <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
                         <div className={cn('absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all', conflict && 'ring-2 ring-amber-400')}
-                          style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 22, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
+                          style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 22, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
                           onClick={() => setSelectedTask(task)}>
                           <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
                           {cellWidth >= 28 && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
@@ -654,7 +654,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                           <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
                           <div
                             className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
-                            style={{ left: Math.max(0, left), width: Math.max(cellWidth * 1.5, width), height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
+                            style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
                             onClick={() => setSelectedTask(task)}>
                             <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
                             {cellWidth >= 28 && width > 40 && <span className="relative text-white text-[9px] font-medium px-1 truncate z-10 leading-none flex items-center h-full">{task.name}</span>}
