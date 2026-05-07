@@ -44,9 +44,8 @@ function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
   )
 }
 
-// Componente separado para manejar el upload (necesita useUploadThing como hook)
 function ChatWindow({
-  win, currentUserId, isGroup, team, msgs, groupMessages,
+  win, currentUserId, isGroup, team, msgs,
   inputs, setInputs, showEmojis, setShowEmojis, showGroupInfo, setShowGroupInfo,
   loading, editingName, newGroupName, setNewGroupName, setEditingName,
   messagesEndRefs, inputRefs, fileInputRefs,
@@ -64,16 +63,13 @@ function ChatWindow({
     ...(team.members || []).map((m: any) => ({ ...m.user, isCoord: false })),
   ] : []
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // ─── Upload helper compartido ─────────────────────────────────────────────
+  async function uploadAndSend(file: File) {
     if (file.size > 4 * 1024 * 1024) { alert('La imagen no puede pesar más de 4MB'); return }
-
     try {
       const res = await startUpload([file])
       const imageUrl = res?.[0]?.url
       if (!imageUrl) throw new Error('No URL')
-
       const content = `${IMAGE_PREFIX}${imageUrl}`
       if (isGroup && team) {
         await fetch('/api/group-messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, teamId: team.id }) })
@@ -84,7 +80,28 @@ function ChatWindow({
       console.error('Error uploading:', err)
       alert('Error al subir la imagen, intenta de nuevo')
     }
+  }
+
+  // ─── Archivo desde botón 📎 ───────────────────────────────────────────────
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) await uploadAndSend(file)
     e.target.value = ''
+  }
+
+  // ─── Paste Ctrl+V ─────────────────────────────────────────────────────────
+  async function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) await uploadAndSend(file)
+        return
+      }
+    }
+    // Si no hay imagen, dejar que el paste normal funcione (texto)
   }
 
   return (
@@ -243,7 +260,7 @@ function ChatWindow({
 
             <button onClick={() => fileInputRefs.current[win.id]?.click()} disabled={isUploading}
               className="flex-shrink-0 text-gray-400 hover:text-brand-500 transition-colors disabled:opacity-40"
-              title="Enviar imagen (máx 4MB)">
+              title="Enviar imagen (máx 4MB) — también puedes pegar con Ctrl+V">
               <Paperclip className="w-3.5 h-3.5" />
             </button>
             <input ref={(el: any) => { fileInputRefs.current[win.id] = el }} type="file" accept="image/*" className="hidden"
@@ -253,7 +270,8 @@ function ChatWindow({
               value={input}
               onChange={(e: any) => setInputs((prev: any) => ({ ...prev, [win.id]: e.target.value }))}
               onKeyDown={(e: any) => handleKeyDown(e, win.id, isGroup)}
-              placeholder="Mensaje..."
+              onPaste={handlePaste}
+              placeholder="Mensaje... (Ctrl+V para pegar imagen)"
               className="flex-1 text-xs bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-2.5 py-1.5 outline-none focus:border-brand-400" />
             <button onClick={() => isGroup ? sendGroupMsg() : sendDM(win.id)}
               disabled={!input.trim() || loading[win.id]}
@@ -463,7 +481,6 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
             isGroup={win.type === 'group'}
             team={team}
             msgs={win.type === 'group' ? groupMessages : (messages[win.id] || [])}
-            groupMessages={groupMessages}
             inputs={inputs} setInputs={setInputs}
             showEmojis={showEmojis} setShowEmojis={setShowEmojis}
             showGroupInfo={showGroupInfo} setShowGroupInfo={setShowGroupInfo}
