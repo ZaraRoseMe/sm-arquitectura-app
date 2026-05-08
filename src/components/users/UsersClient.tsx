@@ -1,8 +1,8 @@
 'use client'
 // src/components/users/UsersClient.tsx
 import { useState } from 'react'
-import { Plus, Shield, User, Trash2, Edit2, AtSign, Users, X, ChevronDown, ChevronUp } from 'lucide-react'
-import { getInitials, getStatusColor } from '@/lib/utils'
+import { Plus, Shield, User, Trash2, Edit2, AtSign, Users, X, ChevronDown, ChevronUp, CheckCircle, Clock, PauseCircle, Circle } from 'lucide-react'
+import { getInitials, getStatusColor, getStatusLabel } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import UserModal from './UserModal'
@@ -31,6 +31,161 @@ function RoleBadge({ role }: { role: string }) {
   )
 }
 
+// ─── Drawer lateral ──────────────────────────────────────────────────────────
+function UserDrawer({ user, currentUserId, onClose, onEdit, onDelete }: {
+  user: any
+  currentUserId: string
+  onClose: () => void
+  onEdit: (user: any) => void
+  onDelete: (id: string) => void
+}) {
+  const avatarColor = user.color || '#6366F1'
+  const tasks = user.tasks || []
+  const totalTasks = user._count?.tasks ?? tasks.length
+  const inProgress = tasks.filter((t: any) => t.status === 'EN_PROGRESO')
+  const pending = tasks.filter((t: any) => t.status === 'PENDIENTE')
+  const paused = tasks.filter((t: any) => t.status === 'PAUSADO')
+  const done = tasks.filter((t: any) => t.status === 'TERMINADO')
+  const teamInfo = user.ledTeam || user.teamMemberships?.[0]?.team
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Drawer */}
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-white dark:bg-neutral-900 shadow-2xl flex flex-col animate-slide-in-right">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-neutral-800">
+          <h2 className="font-semibold text-gray-900 dark:text-white">Perfil de usuario</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Contenido */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+          {/* Avatar + info básica */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
+              style={{ backgroundColor: avatarColor }}>
+              {getInitials(user.name)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-gray-900 dark:text-white text-lg leading-tight">{user.name}</p>
+              {user.username && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <AtSign className="w-3.5 h-3.5 text-gray-400" />
+                  <p className="text-sm text-gray-400">{user.username}</p>
+                </div>
+              )}
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <RoleBadge role={user.role} />
+                {user.id === currentUserId && (
+                  <span className="badge bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">Tú</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Equipo */}
+          {teamInfo && (
+            <div className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-sm',
+              user.role === 'COORDINADOR'
+                ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400'
+                : 'bg-gray-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-400'
+            )}>
+              <Users className="w-4 h-4 flex-shrink-0" />
+              <div>
+                {user.role === 'COORDINADOR'
+                  ? <><span className="text-xs text-amber-500 uppercase tracking-wide font-medium block mb-0.5">Lidera el equipo</span><strong>{teamInfo.name}</strong></>
+                  : <><span className="text-xs text-gray-400 uppercase tracking-wide font-medium block mb-0.5">Pertenece al equipo</span><strong>{teamInfo.name}</strong> · {teamInfo.coordinator?.name}</>
+                }
+              </div>
+            </div>
+          )}
+
+          {/* Estadísticas */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Tareas</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-50 dark:bg-neutral-800 rounded-xl p-3.5">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalTasks}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Total tareas</p>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3.5">
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{inProgress.length}</p>
+                <p className="text-xs text-blue-500 mt-0.5">En progreso</p>
+              </div>
+              <div className="bg-gray-50 dark:bg-neutral-800 rounded-xl p-3.5">
+                <p className="text-2xl font-bold text-gray-600 dark:text-gray-300">{pending.length}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Pendientes</p>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-950/20 rounded-xl p-3.5">
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{paused.length}</p>
+                <p className="text-xs text-amber-500 mt-0.5">Pausadas</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tareas activas */}
+          {tasks.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Detalle de tareas</p>
+              <div className="space-y-2">
+                {tasks.slice(0, 8).map((task: any) => {
+                  const StatusIcon = task.status === 'TERMINADO' ? CheckCircle
+                    : task.status === 'EN_PROGRESO' ? Clock
+                    : task.status === 'PAUSADO' ? PauseCircle
+                    : Circle
+                  const iconColor = task.status === 'TERMINADO' ? 'text-emerald-500'
+                    : task.status === 'EN_PROGRESO' ? 'text-blue-500'
+                    : task.status === 'PAUSADO' ? 'text-amber-500'
+                    : 'text-gray-400'
+                  return (
+                    <div key={task.id} className="flex items-start gap-2.5 p-3 rounded-xl bg-gray-50 dark:bg-neutral-800">
+                      <StatusIcon className={cn('w-3.5 h-3.5 mt-0.5 flex-shrink-0', iconColor)} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 truncate font-medium">{task.name}</p>
+                        {task.project?.name && <p className="text-xs text-gray-400 truncate mt-0.5">{task.project.name}</p>}
+                      </div>
+                      {task.progress > 0 && (
+                        <span className="text-xs text-gray-400 flex-shrink-0">{task.progress}%</span>
+                      )}
+                    </div>
+                  )
+                })}
+                {tasks.length > 8 && (
+                  <p className="text-xs text-gray-400 text-center py-1">+{tasks.length - 8} tareas más</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer con acciones */}
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-neutral-800 flex gap-3">
+          <button
+            onClick={() => { onClose(); onEdit(user) }}
+            className="flex-1 btn-secondary flex items-center justify-center gap-2 text-sm">
+            <Edit2 className="w-3.5 h-3.5" /> Editar
+          </button>
+          {user.id !== currentUserId && (
+            <button
+              onClick={() => { onClose(); onDelete(user.id) }}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors text-sm font-medium">
+              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Panel de gestión de equipo ───────────────────────────────────────────────
 function TeamPanel({ team, allUsers, onUpdated }: {
   team: any
@@ -40,20 +195,17 @@ function TeamPanel({ team, allUsers, onUpdated }: {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const memberIds = new Set(team.members.map((m: any) => m.user.id))
-  // Cualquier usuario puede estar en un equipo, excepto el coordinador del mismo equipo
   const available = allUsers.filter(u => !memberIds.has(u.id) && u.id !== team.coordinator?.id)
 
   async function addMember(userId: string) {
     setLoading(true)
     const res = await fetch(`/api/teams/${team.id}/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     })
     if (res.ok) {
       const data = await res.json()
-      const newMembers = [...team.members, data]
-      onUpdated(team.id, newMembers)
+      onUpdated(team.id, [...team.members, data])
       toast.success('Colaborador agregado al equipo')
     } else {
       const err = await res.json()
@@ -66,25 +218,19 @@ function TeamPanel({ team, allUsers, onUpdated }: {
     if (!confirm('¿Quitar este colaborador del equipo?')) return
     setLoading(true)
     const res = await fetch(`/api/teams/${team.id}/members`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
     })
     if (res.ok) {
-      const newMembers = team.members.filter((m: any) => m.user.id !== userId)
-      onUpdated(team.id, newMembers)
+      onUpdated(team.id, team.members.filter((m: any) => m.user.id !== userId))
       toast.success('Colaborador removido del equipo')
-    } else {
-      toast.error('Error al remover')
-    }
+    } else toast.error('Error al remover')
     setLoading(false)
   }
 
   return (
     <div className="card overflow-hidden">
-      {/* Header del equipo */}
-      <button
-        onClick={() => setExpanded(v => !v)}
+      <button onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-neutral-800/30 transition-colors">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
@@ -101,8 +247,7 @@ function TeamPanel({ team, allUsers, onUpdated }: {
             {team.members.slice(0, 4).map((m: any) => (
               <div key={m.user.id}
                 className="w-6 h-6 rounded-full border-2 border-white dark:border-neutral-900 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0"
-                style={{ backgroundColor: m.user.color || '#6366F1' }}
-                title={m.user.name}>
+                style={{ backgroundColor: m.user.color || '#6366F1' }} title={m.user.name}>
                 {getInitials(m.user.name).charAt(0)}
               </div>
             ))}
@@ -116,10 +261,8 @@ function TeamPanel({ team, allUsers, onUpdated }: {
         </div>
       </button>
 
-      {/* Contenido expandido */}
       {expanded && (
         <div className="border-t border-gray-100 dark:border-neutral-800 p-5 space-y-4">
-          {/* Miembros actuales */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Miembros del equipo</p>
             {team.members.length === 0 ? (
@@ -147,8 +290,6 @@ function TeamPanel({ team, allUsers, onUpdated }: {
               </div>
             )}
           </div>
-
-          {/* Agregar colaborador */}
           {available.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Agregar colaborador</p>
@@ -168,7 +309,6 @@ function TeamPanel({ team, allUsers, onUpdated }: {
               </div>
             </div>
           )}
-
           {available.length === 0 && team.members.length > 0 && (
             <p className="text-xs text-gray-400 italic">Todos los colaboradores ya están en este equipo</p>
           )}
@@ -183,6 +323,7 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
   const [teams, setTeams] = useState(initialTeams)
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
+  const [drawerUser, setDrawerUser] = useState<any>(null)
 
   async function handleDelete(id: string) {
     if (id === currentUserId) { toast.error('No puedes eliminarte a ti mismo'); return }
@@ -202,7 +343,6 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, ...user } : u))
     } else {
       setUsers(prev => [...prev, { ...user, tasks: [], _count: { tasks: 0 } }])
-      // Si es coordinador, agregar su equipo a la lista
       if (user.role === 'COORDINADOR' && user.ledTeam) {
         setTeams(prev => [...prev, { ...user.ledTeam, coordinator: user, members: [] }])
       }
@@ -219,91 +359,52 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
   const coordinadores = users.filter(u => u.role === 'COORDINADOR')
   const colaboradores = users.filter(u => u.role === 'COLABORADOR')
 
+  // ─── Card simplificada ────────────────────────────────────────────────────
   function UserCard({ user }: { user: any }) {
     const avatarColor = user.color || '#6366F1'
-    const activeTasks = (user.tasks || []).filter((t: any) => t.status === 'EN_PROGRESO')
-    const teamInfo = user.ledTeam || user.teamMemberships?.[0]?.team
-
     return (
-      <div className="card p-5 group hover:shadow-md transition-all">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-base font-semibold flex-shrink-0"
-              style={{ backgroundColor: avatarColor }}>
-              {getInitials(user.name)}
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900 dark:text-white">{user.name}</p>
-              {user.username && (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <AtSign className="w-3 h-3 text-gray-400" />
-                  <p className="text-sm text-gray-400 dark:text-gray-500">{user.username}</p>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => { setEditUser(user); setShowModal(true) }}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors">
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
-            {user.id !== currentUserId && (
-              <button onClick={() => handleDelete(user.id)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+      <div
+        onClick={() => setDrawerUser(user)}
+        className="card p-4 group hover:shadow-md transition-all cursor-pointer flex items-center gap-3">
+        {/* Avatar */}
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-semibold flex-shrink-0"
+          style={{ backgroundColor: avatarColor }}>
+          {getInitials(user.name)}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{user.name}</p>
+            {user.id === currentUserId && (
+              <span className="badge bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 text-[10px] py-0 px-1.5">Tú</span>
             )}
           </div>
+          <div className="flex items-center gap-1 mt-0.5">
+            <AtSign className="w-3 h-3 text-gray-400 flex-shrink-0" />
+            <p className="text-xs text-gray-400 truncate">{user.username}</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {/* Rol */}
+        <div className="flex-shrink-0">
           <RoleBadge role={user.role} />
-          {user.id === currentUserId && (
-            <span className="badge bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">Tú</span>
+        </div>
+
+        {/* Botones editar/eliminar — solo visibles en hover */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+          onClick={e => e.stopPropagation()}>
+          <button onClick={() => { setEditUser(user); setShowModal(true) }}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors">
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          {user.id !== currentUserId && (
+            <button onClick={() => handleDelete(user.id)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
-
-        {teamInfo && (
-          <div className={cn(
-            'flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-4',
-            user.role === 'COORDINADOR'
-              ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400'
-              : 'bg-gray-50 dark:bg-neutral-800 text-gray-500 dark:text-gray-400'
-          )}>
-            <Users className="w-3 h-3 flex-shrink-0" />
-            {user.role === 'COORDINADOR'
-              ? <span>Lidera: <strong>{teamInfo.name}</strong></span>
-              : <span>Equipo: <strong>{teamInfo.name}</strong> · {teamInfo.coordinator?.name}</span>
-            }
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gray-50 dark:bg-neutral-800 rounded-xl p-3">
-            <p className="text-2xl font-semibold text-gray-900 dark:text-white">{user._count?.tasks ?? 0}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total tareas</p>
-          </div>
-          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3">
-            <p className="text-2xl font-semibold text-blue-700 dark:text-blue-400">{activeTasks.length}</p>
-            <p className="text-xs text-blue-600 dark:text-blue-500 mt-0.5">En progreso</p>
-          </div>
-        </div>
-
-        {activeTasks.length > 0 && (
-          <div className="mt-4 space-y-1.5">
-            {activeTasks.slice(0, 2).map((task: any) => {
-              const colors = getStatusColor(task.status)
-              return (
-                <div key={task.id} className="flex items-center gap-2 text-xs">
-                  <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', colors.dot)} />
-                  <span className="text-gray-600 dark:text-gray-400 truncate">{task.name}</span>
-                  <span className="text-gray-400 flex-shrink-0">{task.project?.name}</span>
-                </div>
-              )
-            })}
-            {activeTasks.length > 2 && <p className="text-xs text-gray-400 pl-3.5">+{activeTasks.length - 2} más</p>}
-          </div>
-        )}
       </div>
     )
   }
@@ -318,7 +419,7 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
             {title} <span className="font-normal">({users.length})</span>
           </h2>
         </div>
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="space-y-2">
           {users.map(u => <UserCard key={u.id} user={u} />)}
         </div>
       </div>
@@ -341,26 +442,29 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
       <Section title="Coordinadores" users={coordinadores} color="bg-amber-500" />
       <Section title="Colaboradores" users={colaboradores} color="bg-gray-400" />
 
-      {/* Gestión de equipos */}
       {teams.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-amber-400" />
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              Equipos
-            </h2>
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Equipos</h2>
           </div>
           <div className="space-y-3">
             {teams.map(team => (
-              <TeamPanel
-                key={team.id}
-                team={team}
-                allUsers={users}
-                onUpdated={handleTeamUpdated}
-              />
+              <TeamPanel key={team.id} team={team} allUsers={users} onUpdated={handleTeamUpdated} />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Drawer */}
+      {drawerUser && (
+        <UserDrawer
+          user={drawerUser}
+          currentUserId={currentUserId}
+          onClose={() => setDrawerUser(null)}
+          onEdit={(user) => { setEditUser(user); setShowModal(true) }}
+          onDelete={handleDelete}
+        />
       )}
 
       {showModal && (
