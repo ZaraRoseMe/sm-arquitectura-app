@@ -17,10 +17,7 @@ interface GanttClientProps {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDIENTE: '#9CA3AF',
-  EN_PROGRESO: '#3B82F6',
-  PAUSADO: '#F59E0B',
-  TERMINADO: '#10B981',
+  PENDIENTE: '#9CA3AF', EN_PROGRESO: '#3B82F6', PAUSADO: '#F59E0B', TERMINADO: '#10B981',
 }
 
 const DAY_WIDTH_OPTIONS = [20, 28, 40]
@@ -67,8 +64,7 @@ function TaskDetailPopup({ task, users, projects, onClose, onOpenTask }: { task:
           <div className="flex-1 min-w-0 pr-2">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-gray-900 dark:text-white truncate">{task.name}</h3>
-              <button
-                onClick={() => { onClose(); onOpenTask(task) }}
+              <button onClick={() => { onClose(); onOpenTask(task) }}
                 className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors"
                 title="Ver y editar tarea">
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -86,22 +82,10 @@ function TaskDetailPopup({ task, users, projects, onClose, onOpenTask }: { task:
           </button>
         </div>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Estado</span>
-            <span className="font-medium text-gray-800 dark:text-white">{getStatusLabel(task.status)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Progreso</span>
-            <span className="font-medium text-gray-800 dark:text-white">{task.progress}%</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Inicio</span>
-            <span className="font-medium text-gray-800 dark:text-white">{format(parseDate(task.startDate), 'dd MMM yyyy', { locale: es })}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Fin</span>
-            <span className="font-medium text-gray-800 dark:text-white">{format(parseDate(task.endDate), 'dd MMM yyyy', { locale: es })}</span>
-          </div>
+          <div className="flex justify-between"><span className="text-gray-500">Estado</span><span className="font-medium text-gray-800 dark:text-white">{getStatusLabel(task.status)}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Progreso</span><span className="font-medium text-gray-800 dark:text-white">{task.progress}%</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Inicio</span><span className="font-medium text-gray-800 dark:text-white">{format(parseDate(task.startDate), 'dd MMM yyyy', { locale: es })}</span></div>
+          <div className="flex justify-between"><span className="text-gray-500">Fin</span><span className="font-medium text-gray-800 dark:text-white">{format(parseDate(task.endDate), 'dd MMM yyyy', { locale: es })}</span></div>
           {user && (
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Responsable</span>
@@ -119,11 +103,9 @@ function TaskDetailPopup({ task, users, projects, onClose, onOpenTask }: { task:
             </div>
           )}
         </div>
-        <button
-          onClick={() => { onClose(); onOpenTask(task) }}
+        <button onClick={() => { onClose(); onOpenTask(task) }}
           className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors text-sm font-medium">
-          <ExternalLink className="w-3.5 h-3.5" />
-          Ver y editar tarea
+          <ExternalLink className="w-3.5 h-3.5" /> Ver y editar tarea
         </button>
       </div>
     </div>
@@ -251,19 +233,75 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     </div>
   )
 
+  // ─── Helpers PDF ──────────────────────────────────────────────────────────
+  function pdfDrawHeader(doc: any, W: number, M: number, title: string) {
+    doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+    doc.text(title, M, 9)
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal')
+    doc.text(format(new Date(), "dd 'de' MMMM yyyy", { locale: es }), W - M - 32, 9)
+  }
+
+  function pdfDrawCalendarHeader(doc: any, GL: number, GW: number, GT: number, MH: number, WH: number, NH: number, CW: number, M: number, LW: number) {
+    let mx = GL
+    months.forEach((mo) => {
+      const mw = mo.days.length * CW
+      doc.setFillColor(230, 231, 250); doc.rect(mx, GT, mw - 0.1, MH, 'F')
+      doc.setDrawColor(200, 202, 235); doc.setLineWidth(0.1); doc.line(mx, GT, mx, GT + MH)
+      doc.setTextColor(79, 82, 200); doc.setFontSize(4.5); doc.setFont('helvetica', 'bold')
+      doc.text(mo.label.toUpperCase().substring(0, 18), mx + 1.5, GT + 3.5); mx += mw
+    })
+    days.forEach((day, i) => {
+      const x = GL + i * CW, we = isWeekend(day), td = isSameDay(day, today)
+      if (td) doc.setFillColor(79, 82, 220); else if (we) doc.setFillColor(218, 219, 240); else doc.setFillColor(240, 241, 252)
+      doc.rect(x, GT + MH, CW, WH, 'F')
+      const letter = format(day, 'EEEEE', { locale: es }).toUpperCase()
+      doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
+      doc.setTextColor(td ? 255 : we ? 130 : 100, td ? 255 : we ? 130 : 110, td ? 255 : we ? 150 : 160)
+      const tw = doc.getTextWidth(letter); doc.text(letter, x + (CW - tw) / 2, GT + MH + WH - 0.8)
+    })
+    days.forEach((day, i) => {
+      const x = GL + i * CW, we = isWeekend(day), td = isSameDay(day, today)
+      if (td) doc.setFillColor(99, 102, 241); else if (we) doc.setFillColor(228, 229, 245); else doc.setFillColor(248, 249, 255)
+      doc.rect(x, GT + MH + WH, CW, NH, 'F')
+      doc.setDrawColor(220, 221, 240); doc.setLineWidth(0.05); doc.line(x, GT + MH + WH, x, GT + MH + WH + NH)
+      const num = format(day, 'd'); doc.setFontSize(3.2); doc.setFont('helvetica', td ? 'bold' : 'normal')
+      doc.setTextColor(td ? 255 : we ? 140 : 80, td ? 255 : we ? 140 : 85, td ? 255 : we ? 160 : 120)
+      const tw = doc.getTextWidth(num); doc.text(num, x + (CW - tw) / 2, GT + MH + WH + NH - 0.8)
+    })
+    doc.setFillColor(79, 82, 200); doc.rect(M, GT, LW, MH + WH + NH, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
+  }
+
+  function pdfDrawTaskBar(doc: any, task: Task, rowY: number, RH: number, GL: number, CW: number, GW: number, M: number, W: number, todayX: number, labelText: string) {
+    const conflict = conflictIds.has(task.id)
+    const bc = getTaskColor(task, conflict)
+    const bRgb = hexToRgb(bc)
+    doc.setFillColor(252, 252, 255); doc.rect(M, rowY, W - M * 2, RH, 'F')
+    doc.setFillColor(247, 248, 253); doc.rect(GL, rowY, GW, RH, 'F')
+    days.forEach((d, i) => { if (isWeekend(d)) { doc.setFillColor(237, 238, 248); doc.rect(GL + i * CW, rowY, CW, RH, 'F') } })
+    doc.setDrawColor(228, 229, 242); doc.setLineWidth(0.04); doc.line(M, rowY + RH, W - M, rowY + RH)
+    days.forEach((_, i) => { doc.line(GL + i * CW, rowY, GL + i * CW, rowY + RH) })
+    doc.setTextColor(55, 60, 90); doc.setFontSize(5); doc.setFont('helvetica', 'normal')
+    doc.text(labelText.length > 25 ? labelText.substring(0, 24) + '…' : labelText, M + 2, rowY + RH * 0.65)
+    const off = differenceInDays(parseDate(task.startDate), rangeStart)
+    const dur = Math.max(1, differenceInDays(parseDate(task.endDate), parseDate(task.startDate)) + 1)
+    const bx = GL + off * CW, bw = Math.max(CW, dur * CW), bh = RH * 0.55, by = rowY + (RH - bh) / 2
+    if (conflict) { doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4); doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S') }
+    doc.setFillColor(bRgb.r, bRgb.g, bRgb.b); doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F')
+    if (task.progress > 0 && task.progress < 100) { doc.setFillColor(Math.min(255, bRgb.r + 50), Math.min(255, bRgb.g + 50), Math.min(255, bRgb.b + 50)); doc.roundedRect(bx, by, bw * (task.progress / 100), bh, 0.5, 0.5, 'F') }
+    if (bw > 8) { doc.setTextColor(255, 255, 255); doc.setFontSize(3.8); doc.setFont('helvetica', 'bold'); const mc = Math.floor(bw / 2); doc.text(task.name.length > mc ? task.name.substring(0, mc - 1) + '…' : task.name, bx + 1.5, by + bh * 0.72) }
+    doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH)
+  }
+
   // ─── Exportar Excel ────────────────────────────────────────────────────────
   async function handleExportExcel() {
     const tid = toast.loading('Generando Excel...')
     try {
       const ExcelJS = (await import('exceljs')).default
       const wb = new ExcelJS.Workbook()
-      wb.creator = 'KRONOZ'
-      wb.created = new Date()
-
-      // ── Hoja 1: Tareas ──────────────────────────────────────────────────
+      wb.creator = 'KRONOZ'; wb.created = new Date()
       const ws = wb.addWorksheet('Tareas')
-
-      // Título
       ws.mergeCells('A1:G1')
       const titleCell = ws.getCell('A1')
       titleCell.value = `KRONOZ — Diagrama Gantt · ${format(new Date(), "MMMM yyyy", { locale: es })}`
@@ -271,70 +309,31 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
       titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
       ws.getRow(1).height = 28
-
-      ws.addRow([]) // fila vacía
-
-      // Encabezados
+      ws.addRow([])
       const headers = ['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']
       const headerRow = ws.addRow(headers)
       headerRow.eachCell(cell => {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
         cell.alignment = { horizontal: 'center', vertical: 'middle' }
-        cell.border = {
-          bottom: { style: 'thin', color: { argb: 'FF6366F1' } },
-        }
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FF6366F1' } } }
       })
       ws.getRow(3).height = 20
-
-      // Anchos de columna
-      ws.getColumn(1).width = 35
-      ws.getColumn(2).width = 25
-      ws.getColumn(3).width = 22
-      ws.getColumn(4).width = 14
-      ws.getColumn(5).width = 14
-      ws.getColumn(6).width = 16
-      ws.getColumn(7).width = 12
-
-      // Datos
+      ws.getColumn(1).width = 35; ws.getColumn(2).width = 25; ws.getColumn(3).width = 22
+      ws.getColumn(4).width = 14; ws.getColumn(5).width = 14; ws.getColumn(6).width = 16; ws.getColumn(7).width = 12
       filteredTasks.forEach((task, i) => {
         const user = users.find(u => u.id === task.userId)
         const project = projects.find(p => p.id === task.projectId)
         const conflict = conflictIds.has(task.id)
-        const row = ws.addRow([
-          task.name,
-          (task as any).project?.name || project?.name || '',
-          (task as any).user?.name || user?.name || '',
-          format(new Date(task.startDate), 'dd/MM/yyyy'),
-          format(new Date(task.endDate), 'dd/MM/yyyy'),
-          getStatusLabel(task.status),
-          `${task.progress}%`,
-        ])
+        const row = ws.addRow([task.name, (task as any).project?.name || project?.name || '', (task as any).user?.name || user?.name || '', format(new Date(task.startDate), 'dd/MM/yyyy'), format(new Date(task.endDate), 'dd/MM/yyyy'), getStatusLabel(task.status), `${task.progress}%`])
         const isEven = i % 2 === 0
-        row.eachCell(cell => {
-          cell.fill = {
-            type: 'pattern', pattern: 'solid',
-            fgColor: { argb: conflict ? 'FFFFF8E1' : isEven ? 'FFF8F9FF' : 'FFFFFFFF' },
-          }
-          cell.alignment = { vertical: 'middle' }
-          cell.font = { size: 9 }
-        })
-        // Color del estado
-        const statusCell = row.getCell(6)
-        const statusColors: Record<string, string> = {
-          'Pendiente': 'FF9CA3AF',
-          'En progreso': 'FF3B82F6',
-          'Pausado': 'FFF59E0B',
-          'Terminado': 'FF10B981',
-        }
+        row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: conflict ? 'FFFFF8E1' : isEven ? 'FFF8F9FF' : 'FFFFFFFF' } }; cell.alignment = { vertical: 'middle' }; cell.font = { size: 9 } })
+        const statusColors: Record<string, string> = { 'Pendiente': 'FF9CA3AF', 'En progreso': 'FF3B82F6', 'Pausado': 'FFF59E0B', 'Terminado': 'FF10B981' }
         const sc = statusColors[getStatusLabel(task.status)]
-        if (sc) statusCell.font = { bold: true, color: { argb: sc }, size: 9 }
-        // Conflicto
+        if (sc) row.getCell(6).font = { bold: true, color: { argb: sc }, size: 9 }
         if (conflict) row.getCell(1).font = { bold: true, color: { argb: 'FFF59E0B' }, size: 9 }
         row.height = 18
       })
-
-      // ── Hoja 2: Por usuario ─────────────────────────────────────────────
       const ws2 = wb.addWorksheet('Por usuario')
       ws2.mergeCells('A1:G1')
       const t2 = ws2.getCell('A1')
@@ -342,75 +341,35 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       t2.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
       t2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }
       t2.alignment = { horizontal: 'center', vertical: 'middle' }
-      ws2.getRow(1).height = 28
-      ws2.addRow([])
-
-      ws2.getColumn(1).width = 22
-      ws2.getColumn(2).width = 35
-      ws2.getColumn(3).width = 25
-      ws2.getColumn(4).width = 14
-      ws2.getColumn(5).width = 14
-      ws2.getColumn(6).width = 16
-      ws2.getColumn(7).width = 12
-
+      ws2.getRow(1).height = 28; ws2.addRow([])
+      ws2.getColumn(1).width = 22; ws2.getColumn(2).width = 35; ws2.getColumn(3).width = 25
+      ws2.getColumn(4).width = 14; ws2.getColumn(5).width = 14; ws2.getColumn(6).width = 16; ws2.getColumn(7).width = 12
       const h2 = ws2.addRow(['Colaborador', 'Tarea', 'Proyecto', 'Inicio', 'Fin', 'Estado', 'Avance'])
-      h2.eachCell(cell => {
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }
-        cell.alignment = { horizontal: 'center', vertical: 'middle' }
-      })
+      h2.eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F52C8' } }; cell.alignment = { horizontal: 'center', vertical: 'middle' } })
       ws2.getRow(3).height = 20
-
       groupedByUser.forEach(({ user, tasks: ut }) => {
-        // Fila de usuario
         const uRow = ws2.addRow([user.name, `${ut.length} tarea${ut.length !== 1 ? 's' : ''}`, '', '', '', '', ''])
         const rgb = hexToRgb(user.color || '#6366F1')
         const argb = `FF${rgb.r.toString(16).padStart(2,'0')}${rgb.g.toString(16).padStart(2,'0')}${rgb.b.toString(16).padStart(2,'0')}`.toUpperCase()
-        uRow.eachCell(cell => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
-          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-        })
+        uRow.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }; cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 } })
         uRow.height = 20
-
         ut.forEach((task, i) => {
           const project = projects.find(p => p.id === task.projectId)
-          const row = ws2.addRow([
-            '',
-            task.name,
-            (task as any).project?.name || project?.name || '',
-            format(new Date(task.startDate), 'dd/MM/yyyy'),
-            format(new Date(task.endDate), 'dd/MM/yyyy'),
-            getStatusLabel(task.status),
-            `${task.progress}%`,
-          ])
-          row.eachCell(cell => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }
-            cell.font = { size: 9 }
-            cell.alignment = { vertical: 'middle' }
-          })
+          const row = ws2.addRow(['', task.name, (task as any).project?.name || project?.name || '', format(new Date(task.startDate), 'dd/MM/yyyy'), format(new Date(task.endDate), 'dd/MM/yyyy'), getStatusLabel(task.status), `${task.progress}%`])
+          row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }; cell.font = { size: 9 }; cell.alignment = { vertical: 'middle' } })
           row.height = 18
         })
       })
-
-      // Descargar
       const buf = await wb.xlsx.writeBuffer()
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `kronoz-gantt-${format(new Date(), 'yyyy-MM')}.xlsx`
-      a.click()
+      const a = document.createElement('a'); a.href = url; a.download = `kronoz-gantt-${format(new Date(), 'yyyy-MM')}.xlsx`; a.click()
       URL.revokeObjectURL(url)
-
-      toast.dismiss(tid)
-      toast.success('Excel descargado')
-    } catch (err) {
-      console.error(err)
-      toast.dismiss(tid)
-      toast.error('Error al generar Excel')
-    }
+      toast.dismiss(tid); toast.success('Excel descargado')
+    } catch (err) { console.error(err); toast.dismiss(tid); toast.error('Error al generar Excel') }
   }
 
+  // ─── Exportar PDF — respeta groupMode actual ──────────────────────────────
   async function handleExportPDF() {
     const tid = toast.loading('Generando PDF...')
     try {
@@ -418,94 +377,107 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const { default: autoTable } = await import('jspdf-autotable')
       const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
       const W = 297, H = 210, M = 12
-      doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
-      doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-      doc.text('KRONOZ — Diagrama de Gantt', M, 9)
-      doc.setFontSize(7); doc.setFont('helvetica', 'normal')
-      doc.text(format(new Date(), "dd 'de' MMMM yyyy", { locale: es }), W - M - 32, 9)
       const GT = 18, LW = 55, MH = 5, WH = 4, NH = 4, RH = 8
       const GL = M + LW, GW = W - M - GL, CW = GW / days.length
       const todayX = GL + differenceInDays(today, rangeStart) * CW
       const totalHeaderH = MH + WH + NH
-      let mx = GL
-      months.forEach((mo) => {
-        const mw = mo.days.length * CW
-        doc.setFillColor(230, 231, 250); doc.rect(mx, GT, mw - 0.1, MH, 'F')
-        doc.setDrawColor(200, 202, 235); doc.setLineWidth(0.1); doc.line(mx, GT, mx, GT + MH)
-        doc.setTextColor(79, 82, 200); doc.setFontSize(4.5); doc.setFont('helvetica', 'bold')
-        doc.text(mo.label.toUpperCase().substring(0, 18), mx + 1.5, GT + 3.5); mx += mw
-      })
-      days.forEach((day, i) => {
-        const x = GL + i * CW, we = isWeekend(day), td = isSameDay(day, today)
-        if (td) doc.setFillColor(79, 82, 220); else if (we) doc.setFillColor(218, 219, 240); else doc.setFillColor(240, 241, 252)
-        doc.rect(x, GT + MH, CW, WH, 'F')
-        const letter = format(day, 'EEEEE', { locale: es }).toUpperCase()
-        doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
-        doc.setTextColor(td ? 255 : we ? 130 : 100, td ? 255 : we ? 130 : 110, td ? 255 : we ? 150 : 160)
-        const tw = doc.getTextWidth(letter); doc.text(letter, x + (CW - tw) / 2, GT + MH + WH - 0.8)
-      })
-      days.forEach((day, i) => {
-        const x = GL + i * CW, we = isWeekend(day), td = isSameDay(day, today)
-        if (td) doc.setFillColor(99, 102, 241); else if (we) doc.setFillColor(228, 229, 245); else doc.setFillColor(248, 249, 255)
-        doc.rect(x, GT + MH + WH, CW, NH, 'F')
-        doc.setDrawColor(220, 221, 240); doc.setLineWidth(0.05); doc.line(x, GT + MH + WH, x, GT + MH + WH + NH)
-        const num = format(day, 'd'); doc.setFontSize(3.2); doc.setFont('helvetica', td ? 'bold' : 'normal')
-        doc.setTextColor(td ? 255 : we ? 140 : 80, td ? 255 : we ? 140 : 85, td ? 255 : we ? 160 : 120)
-        const tw = doc.getTextWidth(num); doc.text(num, x + (CW - tw) / 2, GT + MH + WH + NH - 0.8)
-      })
-      doc.setFillColor(79, 82, 200); doc.rect(M, GT, LW, totalHeaderH, 'F')
+
+      const modeLabel = groupMode === 'project' ? 'Por proyecto' : 'Por colaborador'
+      pdfDrawHeader(doc, W, M, `KRONOZ — Diagrama de Gantt · ${modeLabel}`)
+      pdfDrawCalendarHeader(doc, GL, GW, GT, MH, WH, NH, CW, M, LW)
+
+      // Etiqueta columna izquierda
       doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
-      doc.text('COLABORADOR / TAREA', M + 2, GT + totalHeaderH / 2 + 1.5)
+      const colLabel = groupMode === 'project' ? 'PROYECTO / TAREA' : 'COLABORADOR / TAREA'
+      doc.text(colLabel, M + 2, GT + totalHeaderH / 2 + 1.5)
+
       let rowY = GT + totalHeaderH
-      groupedByUser.forEach(({ user, tasks: ut }) => {
-        if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
-        const uRgb = hexToRgb(user.color || '#6366F1')
-        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b); doc.rect(M, rowY, LW, RH * 0.85, 'F')
-        doc.setFillColor(Math.min(255, uRgb.r + Math.round((255 - uRgb.r) * 0.88)), Math.min(255, uRgb.g + Math.round((255 - uRgb.g) * 0.88)), Math.min(255, uRgb.b + Math.round((255 - uRgb.b) * 0.88)))
-        doc.rect(GL, rowY, GW, RH * 0.85, 'F')
-        days.forEach((d, i) => { if (isWeekend(d)) { doc.setFillColor(230, 231, 245); doc.rect(GL + i * CW, rowY, CW, RH * 0.85, 'F') } })
-        doc.setFillColor(uRgb.r, uRgb.g, uRgb.b); doc.circle(M + 3.5, rowY + RH * 0.43, 2.5, 'F')
-        doc.setTextColor(255, 255, 255); doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
-        doc.text(getInitials(user.name), M + 1.8, rowY + RH * 0.54)
-        doc.setFontSize(5.5); doc.text(user.name, M + 7.5, rowY + RH * 0.6)
-        doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH * 0.85)
-        rowY += RH * 0.85
-        ut.forEach((task) => {
+
+      // ── Vista por PROYECTO ──────────────────────────────────────────────
+      if (groupMode === 'project') {
+        groupedByProject.forEach(({ project, tasks: pt }) => {
           if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
-          const conflict = conflictIds.has(task.id), bc = getTaskColor(task, conflict), bRgb = hexToRgb(bc)
-          doc.setFillColor(252, 252, 255); doc.rect(M, rowY, W - M * 2, RH, 'F')
-          doc.setFillColor(247, 248, 253); doc.rect(GL, rowY, GW, RH, 'F')
-          days.forEach((d, i) => { if (isWeekend(d)) { doc.setFillColor(237, 238, 248); doc.rect(GL + i * CW, rowY, CW, RH, 'F') } })
-          doc.setDrawColor(228, 229, 242); doc.setLineWidth(0.04); doc.line(M, rowY + RH, W - M, rowY + RH)
-          days.forEach((_, i) => { doc.line(GL + i * CW, rowY, GL + i * CW, rowY + RH) })
-          doc.setTextColor(55, 60, 90); doc.setFontSize(5); doc.setFont('helvetica', 'normal')
-          doc.text(task.name.length > 25 ? task.name.substring(0, 24) + '…' : task.name, M + 2, rowY + RH * 0.65)
-          const off = differenceInDays(new Date(task.startDate), rangeStart), dur = Math.max(1, differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1)
-          const bx = GL + off * CW, bw = Math.max(CW, dur * CW), bh = RH * 0.55, by = rowY + (RH - bh) / 2
-          if (conflict) { doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4); doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S') }
-          doc.setFillColor(bRgb.r, bRgb.g, bRgb.b); doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F')
-          if (task.progress > 0 && task.progress < 100) { doc.setFillColor(Math.min(255, bRgb.r + 50), Math.min(255, bRgb.g + 50), Math.min(255, bRgb.b + 50)); doc.roundedRect(bx, by, bw * (task.progress / 100), bh, 0.5, 0.5, 'F') }
-          if (bw > 8) { doc.setTextColor(255, 255, 255); doc.setFontSize(3.8); doc.setFont('helvetica', 'bold'); const mc = Math.floor(bw / 2); doc.text(task.name.length > mc ? task.name.substring(0, mc - 1) + '…' : task.name, bx + 1.5, by + bh * 0.72) }
-          doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH)
-          rowY += RH
+          const pRgb = hexToRgb(project.color)
+          // Fila de proyecto
+          doc.setFillColor(pRgb.r, pRgb.g, pRgb.b); doc.rect(M, rowY, LW, RH * 0.85, 'F')
+          doc.setFillColor(Math.min(255, pRgb.r + Math.round((255 - pRgb.r) * 0.88)), Math.min(255, pRgb.g + Math.round((255 - pRgb.g) * 0.88)), Math.min(255, pRgb.b + Math.round((255 - pRgb.b) * 0.88)))
+          doc.rect(GL, rowY, GW, RH * 0.85, 'F')
+          days.forEach((d, i) => { if (isWeekend(d)) { doc.setFillColor(230, 231, 245); doc.rect(GL + i * CW, rowY, CW, RH * 0.85, 'F') } })
+          // Cuadradito de color del proyecto
+          doc.setFillColor(pRgb.r, pRgb.g, pRgb.b); doc.rect(M + 2, rowY + RH * 0.25, 3, 3, 'F')
+          doc.setTextColor(255, 255, 255); doc.setFontSize(5.5); doc.setFont('helvetica', 'bold')
+          doc.text(project.name.length > 22 ? project.name.substring(0, 21) + '…' : project.name, M + 7, rowY + RH * 0.6)
+          doc.setFontSize(4); doc.setFont('helvetica', 'normal')
+          doc.text(`${pt.length} tarea${pt.length !== 1 ? 's' : ''}`, M + 7, rowY + RH * 0.85)
+          // Barra resumen del proyecto
+          if (project.startDate && project.endDate) {
+            const sd = String(project.startDate).substring(0, 10).split('-').map(Number)
+            const ed = String(project.endDate).substring(0, 10).split('-').map(Number)
+            const pStart = new Date(sd[0], sd[1]-1, sd[2])
+            const pEnd = new Date(ed[0], ed[1]-1, ed[2])
+            const clampedS = pStart < rangeStart ? rangeStart : pStart
+            const bx = GL + Math.max(0, differenceInDays(clampedS, rangeStart)) * CW
+            const bw = Math.max(CW * 2, (differenceInDays(pEnd, clampedS) + 1) * CW)
+            const done = pt.filter(t => t.status === 'TERMINADO').length
+            const prog = pt.length > 0 ? Math.round((done / pt.length) * 100) : 0
+            doc.setFillColor(pRgb.r, pRgb.g, pRgb.b)
+            doc.roundedRect(bx, rowY + 1.5, bw, RH * 0.85 - 3, 0.5, 0.5, 'F')
+            if (prog > 0) { doc.setFillColor(255,255,255); doc.setGState && doc.setGState(doc.GState({ opacity: 0.3 })); doc.roundedRect(bx, rowY + 1.5, bw * (prog / 100), RH * 0.85 - 3, 0.5, 0.5, 'F') }
+          }
+          doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH * 0.85)
+          rowY += RH * 0.85
+
+          // Tareas del proyecto
+          pt.forEach((task) => {
+            if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
+            const user = users.find(u => u.id === task.userId)
+            const taskLabel = `  ${task.name}${user ? ` · ${user.name.split(' ')[0]}` : ''}`
+            pdfDrawTaskBar(doc, task, rowY, RH, GL, CW, GW, M, W, todayX, taskLabel)
+            rowY += RH
+          })
+          rowY += 1.5
         })
-        rowY += 1.5
-      })
+
+      // ── Vista por USUARIO ───────────────────────────────────────────────
+      } else {
+        groupedByUser.forEach(({ user, tasks: ut }) => {
+          if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
+          const uRgb = hexToRgb(user.color || '#6366F1')
+          doc.setFillColor(uRgb.r, uRgb.g, uRgb.b); doc.rect(M, rowY, LW, RH * 0.85, 'F')
+          doc.setFillColor(Math.min(255, uRgb.r + Math.round((255 - uRgb.r) * 0.88)), Math.min(255, uRgb.g + Math.round((255 - uRgb.g) * 0.88)), Math.min(255, uRgb.b + Math.round((255 - uRgb.b) * 0.88)))
+          doc.rect(GL, rowY, GW, RH * 0.85, 'F')
+          days.forEach((d, i) => { if (isWeekend(d)) { doc.setFillColor(230, 231, 245); doc.rect(GL + i * CW, rowY, CW, RH * 0.85, 'F') } })
+          doc.setFillColor(uRgb.r, uRgb.g, uRgb.b); doc.circle(M + 3.5, rowY + RH * 0.43, 2.5, 'F')
+          doc.setTextColor(255, 255, 255); doc.setFontSize(3.5); doc.setFont('helvetica', 'bold')
+          doc.text(getInitials(user.name), M + 1.8, rowY + RH * 0.54)
+          doc.setFontSize(5.5); doc.text(user.name, M + 7.5, rowY + RH * 0.6)
+          doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH * 0.85)
+          rowY += RH * 0.85
+          ut.forEach((task) => {
+            if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
+            pdfDrawTaskBar(doc, task, rowY, RH, GL, CW, GW, M, W, todayX, task.name)
+            rowY += RH
+          })
+          rowY += 1.5
+        })
+      }
+
+      // ── Página de detalle ───────────────────────────────────────────────
       doc.addPage('a4', 'landscape')
-      doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
-      doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-      doc.text('KRONOZ — Detalle de Tareas', M, 9)
+      pdfDrawHeader(doc, W, M, 'KRONOZ — Detalle de Tareas')
       autoTable(doc, {
         startY: 20,
         head: [['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']],
-        body: filteredTasks.map((t) => [t.name, (t as any).project?.name || '', (t as any).user?.name || '', format(new Date(t.startDate), 'dd/MM/yyyy'), format(new Date(t.endDate), 'dd/MM/yyyy'), getStatusLabel(t.status), `${t.progress}%`]),
+        body: filteredTasks.map((t) => [t.name, (t as any).project?.name || '', (t as any).user?.name || '', format(parseDate(t.startDate), 'dd/MM/yyyy'), format(parseDate(t.endDate), 'dd/MM/yyyy'), getStatusLabel(t.status), `${t.progress}%`]),
         headStyles: { fillColor: [79, 82, 200], textColor: 255, fontSize: 7, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7, textColor: [40, 45, 80] },
         alternateRowStyles: { fillColor: [242, 243, 252] },
         columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 50 }, 2: { cellWidth: 45 }, 3: { cellWidth: 25 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 }, 6: { cellWidth: 18 } },
         margin: { left: M, right: M },
       })
-      doc.save('kronoz-gantt.pdf')
+
+      const fileName = `kronoz-gantt-${groupMode}-${format(new Date(), 'yyyy-MM')}.pdf`
+      doc.save(fileName)
       toast.dismiss(tid); toast.success('PDF descargado')
     } catch (err) { console.error(err); toast.dismiss(tid); toast.error('Error al generar PDF') }
   }
@@ -513,37 +485,20 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   return (
     <div className="space-y-4 animate-fade-in">
       {selectedTask && (
-        <TaskDetailPopup
-          task={selectedTask}
-          users={users}
-          projects={projects}
-          onClose={() => setSelectedTask(null)}
-          onOpenTask={(task) => setEditTask(task)}
-        />
+        <TaskDetailPopup task={selectedTask} users={users} projects={projects}
+          onClose={() => setSelectedTask(null)} onOpenTask={(task) => setEditTask(task)} />
       )}
 
       {editTask && (
         <TaskModal
           task={editTask}
           projects={projects.map(p => ({ ...p, children: [] }))}
-          users={users}
-          isAdmin={isAdmin}
-          currentUserId=""
-          currentUserName=""
+          users={users} isAdmin={isAdmin} currentUserId="" currentUserName=""
           onClose={() => setEditTask(null)}
           onSave={async (taskData) => {
-            const res = await fetch(`/api/tasks/${editTask.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(taskData),
-            })
-            if (res.ok) {
-              toast.success('Tarea actualizada')
-              setEditTask(null)
-              window.location.reload()
-            } else {
-              toast.error('Error al guardar')
-            }
+            const res = await fetch(`/api/tasks/${editTask.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(taskData) })
+            if (res.ok) { toast.success('Tarea actualizada'); setEditTask(null); window.location.reload() }
+            else toast.error('Error al guardar')
             return res.ok
           }}
         />
@@ -575,7 +530,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
             <span className="text-xs text-gray-500 px-1">{cellWidth}px</span>
             <button onClick={() => setDayWidth(Math.min(DAY_WIDTH_OPTIONS.length - 1, dayWidth + 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomIn className="w-3.5 h-3.5" /></button>
           </div>
-          {/* Botones de exportar */}
           <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 text-sm text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20">
             <FileSpreadsheet className="w-4 h-4" /> Excel
           </button>
@@ -703,8 +657,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                         <div className="flex-1 relative" style={{ height: 32, minWidth: days.length * cellWidth }}>
                           {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                           <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
-                          <div
-                            className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
+                          <div className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
                             style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
                             onClick={() => setSelectedTask(task)}>
                             <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
