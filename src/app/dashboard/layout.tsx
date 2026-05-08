@@ -22,7 +22,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       select: { id: true, name: true, color: true },
       orderBy: { name: 'asc' },
     }),
-    // Cargar el equipo si es coordinador o si es miembro de algún equipo
     userRole === 'COORDINADOR'
       ? prisma.team.findUnique({
           where: { coordinatorId: currentUserId },
@@ -31,6 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             members: { include: { user: { select: { id: true, name: true, color: true } } } },
           },
         })
+      // COLABORADOR y REPORTES: buscar si pertenecen a algún equipo (para chat grupal)
       : prisma.team.findFirst({
           where: { members: { some: { userId: currentUserId } } },
           include: {
