@@ -1,12 +1,13 @@
 'use client'
 // src/components/gantt/GanttClient.tsx
 import { useState, useMemo } from 'react'
-import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X, FileSpreadsheet } from 'lucide-react'
+import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X, FileSpreadsheet, ExternalLink } from 'lucide-react'
 import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getStatusLabel, getInitials, detectConflicts, parseDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Task } from '@/types'
+import TaskModal from '@/components/tasks/TaskModal'
 
 interface GanttClientProps {
   tasks: Task[]
@@ -55,7 +56,7 @@ function DayCell({ day, cellWidth }: { day: Date; cellWidth: number }) {
   )
 }
 
-function TaskDetailPopup({ task, users, projects, onClose }: { task: Task; users: any[]; projects: any[]; onClose: () => void }) {
+function TaskDetailPopup({ task, users, projects, onClose, onOpenTask }: { task: Task; users: any[]; projects: any[]; onClose: () => void; onOpenTask: (task: Task) => void }) {
   const user = users.find(u => u.id === task.userId)
   const project = projects.find(p => p.id === task.projectId)
   return (
@@ -63,8 +64,16 @@ function TaskDetailPopup({ task, users, projects, onClose }: { task: Task; users
       <div className="absolute inset-0 bg-black/20" />
       <div className="relative bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl p-5 w-80 animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">{task.name}</h3>
+          <div className="flex-1 min-w-0 pr-2">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white truncate">{task.name}</h3>
+              <button
+                onClick={() => { onClose(); onOpenTask(task) }}
+                className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors"
+                title="Ver y editar tarea">
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            </div>
             {project && (
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: project.color }} />
@@ -72,7 +81,7 @@ function TaskDetailPopup({ task, users, projects, onClose }: { task: Task; users
               </div>
             )}
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -110,6 +119,12 @@ function TaskDetailPopup({ task, users, projects, onClose }: { task: Task; users
             </div>
           )}
         </div>
+        <button
+          onClick={() => { onClose(); onOpenTask(task) }}
+          className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors text-sm font-medium">
+          <ExternalLink className="w-3.5 h-3.5" />
+          Ver y editar tarea
+        </button>
       </div>
     </div>
   )
@@ -124,6 +139,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const [colorMode, setColorMode] = useState<ColorMode>('status')
   const [groupMode, setGroupMode] = useState<GroupMode>('project')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [editTask, setEditTask] = useState<Task | null>(null)
 
   const today = new Date()
   const isCurrentMonth = isSameMonth(currentDate, today)
@@ -496,7 +512,42 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {selectedTask && <TaskDetailPopup task={selectedTask} users={users} projects={projects} onClose={() => setSelectedTask(null)} />}
+      {selectedTask && (
+        <TaskDetailPopup
+          task={selectedTask}
+          users={users}
+          projects={projects}
+          onClose={() => setSelectedTask(null)}
+          onOpenTask={(task) => setEditTask(task)}
+        />
+      )}
+
+      {editTask && (
+        <TaskModal
+          task={editTask}
+          projects={projects.map(p => ({ ...p, children: [] }))}
+          users={users}
+          isAdmin={isAdmin}
+          currentUserId=""
+          currentUserName=""
+          onClose={() => setEditTask(null)}
+          onSave={async (taskData) => {
+            const res = await fetch(`/api/tasks/${editTask.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(taskData),
+            })
+            if (res.ok) {
+              toast.success('Tarea actualizada')
+              setEditTask(null)
+              window.location.reload()
+            } else {
+              toast.error('Error al guardar')
+            }
+            return res.ok
+          }}
+        />
+      )}
 
       <div className="page-header">
         <div>
