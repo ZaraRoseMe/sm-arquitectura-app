@@ -96,11 +96,11 @@ function TaskDetailPopup({ task, users, projects, onClose, onOpenTask }: { task:
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Inicio</span>
-            <span className="font-medium text-gray-800 dark:text-white">{format(new Date(task.startDate), 'dd MMM yyyy', { locale: es })}</span>
+            <span className="font-medium text-gray-800 dark:text-white">{format(parseDate(task.startDate), 'dd MMM yyyy', { locale: es })}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Fin</span>
-            <span className="font-medium text-gray-800 dark:text-white">{format(new Date(task.endDate), 'dd MMM yyyy', { locale: es })}</span>
+            <span className="font-medium text-gray-800 dark:text-white">{format(parseDate(task.endDate), 'dd MMM yyyy', { locale: es })}</span>
           </div>
           {user && (
             <div className="flex justify-between items-center">
