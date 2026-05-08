@@ -30,6 +30,15 @@ const colaboradorLinks = [
   { href: '/dashboard/timesheets', label: 'Mis Tiempos', icon: Clock },
 ]
 
+// REPORTES: ve todo pero solo exporta, no edita
+const reportesLinks = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/projects', label: 'Proyectos', icon: FolderOpen },
+  { href: '/dashboard/tasks', label: 'Tareas', icon: CheckSquare },
+  { href: '/dashboard/gantt', label: 'Gantt', icon: BarChart2 },
+  { href: '/dashboard/timesheets', label: 'Tiempos', icon: Clock },
+]
+
 function KronozMark({ size = 32 }: { size?: number }) {
   const cx = size / 2, cy = size / 2
   const outerR = size * 0.44
@@ -43,7 +52,6 @@ function KronozMark({ size = 32 }: { size?: number }) {
 
   const outerPts = Array.from({ length: 6 }, (_, i) => pt(outerR, i))
   const innerPts = Array.from({ length: 6 }, (_, i) => pt(innerR, i))
-
   const outerPoly = outerPts.map(p => `${p.x},${p.y}`).join(' ')
   const innerPoly = innerPts.map(p => `${p.x},${p.y}`).join(' ')
 
@@ -67,7 +75,26 @@ interface SidebarProps { role: string }
 export default function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname()
   const { sidebarOpen, toggleSidebar } = useAppStore()
-  const links = role === 'ADMIN' ? adminLinks : role === 'COORDINADOR' ? coordinadorLinks : colaboradorLinks
+
+  const links = role === 'ADMIN' ? adminLinks
+    : role === 'COORDINADOR' ? coordinadorLinks
+    : role === 'REPORTES' ? reportesLinks
+    : colaboradorLinks
+
+  const rolLabel = role === 'ADMIN' ? 'Administrador'
+    : role === 'COORDINADOR' ? 'Coordinador'
+    : role === 'REPORTES' ? 'Reportes'
+    : 'Colaborador'
+
+  const rolColor = role === 'ADMIN' ? 'bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400'
+    : role === 'COORDINADOR' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+    : role === 'REPORTES' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+    : 'bg-gray-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-400'
+
+  const dotColor = role === 'ADMIN' ? 'bg-brand-500'
+    : role === 'COORDINADOR' ? 'bg-amber-500'
+    : role === 'REPORTES' ? 'bg-emerald-500'
+    : 'bg-gray-400'
 
   return (
     <aside className={cn(
@@ -122,15 +149,9 @@ export default function Sidebar({ role }: SidebarProps) {
 
       {sidebarOpen && (
         <div className="p-4 border-t border-gray-100 dark:border-neutral-800">
-          <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium',
-            role === 'ADMIN'
-              ? 'bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-400'
-              : role === 'COORDINADOR'
-                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
-                : 'bg-gray-50 dark:bg-neutral-800 text-gray-600 dark:text-gray-400')}>
-            <div className={cn('w-1.5 h-1.5 rounded-full',
-              role === 'ADMIN' ? 'bg-brand-500' : role === 'COORDINADOR' ? 'bg-amber-500' : 'bg-gray-400')} />
-            {role === 'ADMIN' ? 'Administrador' : role === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'}
+          <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium', rolColor)}>
+            <div className={cn('w-1.5 h-1.5 rounded-full', dotColor)} />
+            {rolLabel}
           </div>
         </div>
       )}
