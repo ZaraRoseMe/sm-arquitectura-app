@@ -1,6 +1,6 @@
 'use client'
 // src/components/users/UsersClient.tsx
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Shield, User, Trash2, Edit2, AtSign, Users, X, ChevronDown, ChevronUp, CheckCircle, Clock, PauseCircle, Circle } from 'lucide-react'
 import { getInitials, getStatusColor, getStatusLabel } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -130,6 +130,44 @@ function UserDrawer({ user, currentUserId, onClose, onEdit, onDelete }: {
               </div>
             </div>
           </div>
+
+          {/* Colaboradores del equipo (solo coordinadores) */}
+          {user.role === 'COORDINADOR' && teamInfo && teamInfo.members && teamInfo.members.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                Colaboradores del equipo ({teamInfo.members.length})
+              </p>
+              <div className="space-y-2">
+                {teamInfo.members.map((m: any) => {
+                  const member = m.user
+                  return (
+                    <button
+                      key={member.id}
+                      onClick={() => {
+                        // Buscar el usuario completo en la lista para abrir su drawer
+                        const fullUser = document.querySelector(`[data-user-id="${member.id}"]`)
+                        onClose()
+                        setTimeout(() => {
+                          const event = new CustomEvent('open-user-drawer', { detail: { userId: member.id } })
+                          window.dispatchEvent(event)
+                        }, 150)
+                      }}
+                      className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 dark:bg-neutral-800 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-colors text-left group">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                        style={{ backgroundColor: member.color || '#6366F1' }}>
+                        {getInitials(member.name).charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate group-hover:text-brand-700 dark:group-hover:text-brand-400">{member.name}</p>
+                        <p className="text-xs text-gray-400">@{member.username}</p>
+                      </div>
+                      <span className="text-xs text-gray-300 group-hover:text-brand-400">→</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Tareas activas */}
           {tasks.length > 0 && (
@@ -324,6 +362,16 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
   const [showModal, setShowModal] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
   const [drawerUser, setDrawerUser] = useState<any>(null)
+
+  // Listener para abrir drawer desde lista de colaboradores del coordinador
+  useEffect(() => {
+    function handleOpenDrawer(e: any) {
+      const user = users.find(u => u.id === e.detail.userId)
+      if (user) setDrawerUser(user)
+    }
+    window.addEventListener('open-user-drawer', handleOpenDrawer)
+    return () => window.removeEventListener('open-user-drawer', handleOpenDrawer)
+  }, [users])
 
   async function handleDelete(id: string) {
     if (id === currentUserId) { toast.error('No puedes eliminarte a ti mismo'); return }
