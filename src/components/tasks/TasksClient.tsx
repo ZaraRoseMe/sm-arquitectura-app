@@ -191,6 +191,7 @@ export default function TasksClient({
             key={task.id}
             task={task}
             isAdmin={isAdmin || isCoordinador}
+            isReportes={isReportes}
             currentUserId={currentUserId}
             onEdit={canEditTask(task) ? (t) => { setEditTask(t); setShowModal(true) } : undefined}
             onDelete={canEditTask(task) ? handleDelete : undefined}
