@@ -1,7 +1,7 @@
 'use client'
 // src/components/users/UsersClient.tsx
 import { useState, useEffect } from 'react'
-import { Plus, Shield, User, Trash2, Edit2, AtSign, Users, X, ChevronDown, ChevronUp, CheckCircle, Clock, PauseCircle, Circle } from 'lucide-react'
+import { Plus, Shield, User, Trash2, Edit2, AtSign, Users, X, ChevronDown, ChevronUp, CheckCircle, Clock, PauseCircle, Circle, BarChart2 } from 'lucide-react'
 import { getInitials, getStatusColor, getStatusLabel } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -24,9 +24,9 @@ function RoleBadge({ role }: { role: string }) {
       <Users className="w-3 h-3" /> Coordinador
     </span>
   )
-  return (
-    <span className="badge bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-gray-400 flex items-center gap-1">
-      <User className="w-3 h-3" /> Colaborador
+  if (role === 'REPORTES') return (
+    <span className="badge bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 flex items-center gap-1">
+      <BarChart2 className="w-3 h-3" /> Reportes
     </span>
   )
 }
@@ -406,6 +406,7 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
   const admins = users.filter(u => u.role === 'ADMIN')
   const coordinadores = users.filter(u => u.role === 'COORDINADOR')
   const colaboradores = users.filter(u => u.role === 'COLABORADOR')
+  const reportes = users.filter(u => u.role === 'REPORTES')
 
   // ─── Card simplificada ────────────────────────────────────────────────────
   function UserCard({ user }: { user: any }) {
@@ -489,6 +490,7 @@ export default function UsersClient({ users: initialUsers, teams: initialTeams, 
       <Section title="Administradores" users={admins} color="bg-brand-500" />
       <Section title="Coordinadores" users={coordinadores} color="bg-amber-500" />
       <Section title="Colaboradores" users={colaboradores} color="bg-gray-400" />
+      <Section title="Reportes" users={reportes} color="bg-emerald-500" />
 
       {teams.length > 0 && (
         <div className="space-y-3">
