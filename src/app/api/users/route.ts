@@ -33,13 +33,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
   }
 
+  // Validar que el rol sea válido
+  const validRoles = ['ADMIN', 'COORDINADOR', 'COLABORADOR', 'REPORTES']
+  if (role && !validRoles.includes(role)) {
+    return NextResponse.json({ error: 'Rol no válido' }, { status: 400 })
+  }
+
   const exists = await prisma.user.findUnique({ where: { username } })
   if (exists) return NextResponse.json({ error: 'El usuario ya existe' }, { status: 409 })
 
   const hashed = await bcrypt.hash(password, 12)
-
   const user = await prisma.user.create({
-    data: { username, name, password: hashed, role: role || 'COLABORADOR', color: color || '#6366F1' },
+    data: {
+      username, name, password: hashed,
+      role: role || 'COLABORADOR',
+      color: color || '#6366F1',
+    },
     select: {
       id: true, username: true, name: true, email: true,
       role: true, color: true, createdAt: true,
