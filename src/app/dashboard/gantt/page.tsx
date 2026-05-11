@@ -18,8 +18,8 @@ export default async function GanttPage() {
   const role = session.user.role
   const isAdmin = role === 'ADMIN'
   const isCoordinador = role === 'COORDINADOR'
+  const isReportes = role === 'REPORTES'
 
-  // Miembros del equipo del coordinador
   let teamMemberIds: string[] = []
   if (isCoordinador) {
     const team = await prisma.team.findUnique({
@@ -31,7 +31,7 @@ export default async function GanttPage() {
 
   const [tasks, users, projectsRaw] = await Promise.all([
     prisma.task.findMany({
-      where: isAdmin
+      where: isAdmin || isReportes
         ? {}
         : isCoordinador
           ? { userId: { in: [session.user.id, ...teamMemberIds] } }
@@ -39,8 +39,7 @@ export default async function GanttPage() {
       include: { project: true, user: true },
       orderBy: [{ userId: 'asc' }, { startDate: 'asc' }],
     }),
-
-    isAdmin
+    isAdmin || isReportes
       ? prisma.user.findMany({ select: { id: true, name: true, color: true } })
       : isCoordinador
         ? prisma.user.findMany({
@@ -48,7 +47,6 @@ export default async function GanttPage() {
             select: { id: true, name: true, color: true },
           })
         : Promise.resolve([{ id: session.user.id, name: session.user.name || '', color: (session.user as any).color }]),
-
     isCoordinador
       ? prisma.project.findMany({
           where: { team: { coordinatorId: session.user.id } },
@@ -70,7 +68,7 @@ export default async function GanttPage() {
       tasks={tasks as any}
       users={users}
       projects={projects as any}
-      isAdmin={isAdmin || isCoordinador}
+      isAdmin={isAdmin || isCoordinador || isReportes}
     />
   )
 }
