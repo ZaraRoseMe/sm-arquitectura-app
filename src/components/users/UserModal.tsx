@@ -116,8 +116,14 @@ export default function UserModal({ user, onClose, onSaved }: UserModalProps) {
               onChange={e => setForm({ ...form, role: e.target.value as any })}>
               <option value="COLABORADOR">Colaborador</option>
               <option value="COORDINADOR">Coordinador</option>
+              <option value="REPORTES">Reportes</option>
               <option value="ADMIN">Administrador</option>
             </select>
+            {form.role === 'REPORTES' && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 flex items-center gap-1">
+                <span>📊</span> Puede ver todo y exportar reportes, pero no edita ni registra horas.
+              </p>
+            )}
           </div>
 
           {/* Nombre del equipo — solo si es COORDINADOR */}
