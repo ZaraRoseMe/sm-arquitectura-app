@@ -15,6 +15,7 @@ interface TimesheetsClientProps {
   tasks: any[]
   myTasks: any[]
   isAdmin: boolean
+  isReportes?: boolean
   currentUserId: string
   currentUserColor?: string
 }
@@ -212,7 +213,7 @@ function SummaryCell({ realMins, plannedMins, color, date }: { realMins: number;
   )
 }
 
-export default function TimesheetsClient({ entries: initialEntries, workPlans: initialPlans, projects, users, tasks, myTasks, isAdmin, currentUserId, currentUserColor }: TimesheetsClientProps) {
+export default function TimesheetsClient({ entries: initialEntries, workPlans: initialPlans, projects, users, tasks, myTasks, isAdmin, isReportes = false, currentUserId, currentUserColor }: TimesheetsClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [workPlans, setWorkPlans] = useState(initialPlans)
   const [viewMode, setViewMode] = useState<ViewMode>('weekly')
@@ -236,7 +237,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
   const monthStr = format(currentMonth, 'yyyy-MM')
 
-  const effectiveUserFilter = isAdmin && showOnlyMine && viewMode === 'monthly' ? currentUserId : userFilter
+  const effectiveUserFilter = (isAdmin || isReportes) && showOnlyMine && viewMode === 'monthly' ? currentUserId : userFilter
 
   const filteredEntries = useMemo(() => entries.filter(e => {
     if (!toDateStr(e.date).startsWith(monthStr)) return false
@@ -253,7 +254,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
   }), [workPlans, monthStr, projectFilter, effectiveUserFilter])
 
   const groupedByUser = useMemo(() => {
-    const allUsers = isAdmin
+    const allUsers = isAdmin || isReportes
       ? [...users.filter(u => u.id === currentUserId), ...users.filter(u => u.id !== currentUserId)]
       : users.filter(u => u.id === currentUserId)
     return allUsers.map(user => {
@@ -597,7 +598,7 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          {isAdmin && (
+          {(isAdmin || isReportes) && (
             <button onClick={() => setShowOnlyMine(v => !v)}
               className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
                 showOnlyMine ? 'bg-brand-50 dark:bg-brand-950/30 border-brand-300 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-600 dark:text-gray-300')}>
@@ -610,7 +611,9 @@ export default function TimesheetsClient({ entries: initialEntries, workPlans: i
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
             <button onClick={() => setViewMode('weekly')}
               className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1',
-                viewMode === 'weekly' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                viewMode === 'weekly' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+              disabled={isReportes}
+              style={isReportes ? { display: 'none' } : undefined}>
               <Calendar className="w-3 h-3" /> Semana
             </button>
             <button onClick={() => setViewMode('monthly')}
