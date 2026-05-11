@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
 import TasksClient from '@/components/tasks/TasksClient'
 
-// Children anidados — igual que el original pero sin tasks/team (no los necesita TasksClient aquí)
 const childrenInclude = {
   children: {
     orderBy: { name: 'asc' as const },
@@ -32,16 +31,10 @@ async function getCoordinadorProjects(teamId: string) {
     where: { teamId },
     select: { id: true, parentId: true },
   })
-
   if (assignedProjects.length === 0) return []
-
   const rootIds = new Set<string>()
-
   for (const p of assignedProjects) {
-    if (!p.parentId) {
-      rootIds.add(p.id)
-      continue
-    }
+    if (!p.parentId) { rootIds.add(p.id); continue }
     let current: { id: string; parentId: string | null } | null = p
     while (current?.parentId) {
       current = await prisma.project.findUnique({
@@ -51,9 +44,7 @@ async function getCoordinadorProjects(teamId: string) {
     }
     if (current) rootIds.add(current.id)
   }
-
   if (rootIds.size === 0) return []
-
   return prisma.project.findMany({
     where: { id: { in: Array.from(rootIds) } },
     orderBy: { name: 'asc' },
@@ -69,6 +60,7 @@ export default async function TasksPage() {
   const isAdmin = role === 'ADMIN'
   const isCoordinador = role === 'COORDINADOR'
   const isColaborador = role === 'COLABORADOR'
+  const isReportes = role === 'REPORTES'
 
   let teamMemberIds: string[] = []
   let teamId: string | null = null
@@ -92,7 +84,7 @@ export default async function TasksPage() {
 
   const [tasks, users] = await Promise.all([
     prisma.task.findMany({
-      where: isAdmin
+      where: isAdmin || isReportes
         ? {}
         : isCoordinador
           ? { userId: { in: [session.user.id, ...teamMemberIds] } }
@@ -100,7 +92,7 @@ export default async function TasksPage() {
       include: { project: true, user: true, pauseLogs: true },
       orderBy: { updatedAt: 'desc' },
     }),
-    isAdmin
+    isAdmin || isReportes
       ? prisma.user.findMany({
           select: { id: true, name: true, email: true, role: true, color: true },
         })
@@ -120,6 +112,7 @@ export default async function TasksPage() {
       isAdmin={isAdmin}
       isCoordinador={isCoordinador}
       isColaborador={isColaborador}
+      isReportes={isReportes}
       currentUserId={session.user.id}
       currentUserName={session.user.name || ''}
     />
