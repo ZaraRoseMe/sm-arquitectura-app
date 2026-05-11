@@ -42,6 +42,7 @@ function countWorkingDays(start: Date, end: Date): number {
 interface TaskCardProps {
   task: Task
   isAdmin: boolean
+  isReportes?: boolean
   currentUserId: string
   onEdit: (task: Task) => void
   onDelete: (id: string) => void
@@ -87,7 +88,7 @@ function ResumePrompt({ pausedTaskName, onYes, onNo, loading }: {
   )
 }
 
-export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelete, onStatusChange }: TaskCardProps) {
+export default function TaskCard({ task, isAdmin, isReportes = false, currentUserId, onEdit, onDelete, onStatusChange }: TaskCardProps) {
   const [showPauseDialog, setShowPauseDialog] = useState(false)
   const [pauseReason, setPauseReason] = useState('')
   const [showDesc, setShowDesc] = useState(false)
@@ -98,7 +99,7 @@ export default function TaskCard({ task, isAdmin, currentUserId, onEdit, onDelet
   const colors = getStatusColor(task.status)
   const overdue = isOverdue(task.endDate) && task.status !== 'TERMINADO'
   const canEdit = isAdmin || task.userId === currentUserId
-  const canLogTime = isAdmin || task.userId === currentUserId
+  const canLogTime = !isReportes && (isAdmin || task.userId === currentUserId)
   const avatarColor = (task.user as any)?.color || '#6366F1'
   const daysLeft = Math.ceil((new Date(task.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
   const entries = parseEntries((task as any).description)
