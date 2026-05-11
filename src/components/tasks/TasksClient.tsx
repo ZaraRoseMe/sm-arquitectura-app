@@ -13,18 +13,19 @@ type StatusFilter = 'ALL' | 'PENDIENTE' | 'EN_PROGRESO' | 'PAUSADO' | 'TERMINADO
 
 interface TasksClientProps {
   tasks: Task[]
-  projects: any[]  // árbol con children anidados
+  projects: any[]
   users: User[]
   isAdmin: boolean
   isCoordinador: boolean
   isColaborador: boolean
+  isReportes?: boolean
   currentUserId: string
   currentUserName: string
 }
 
 export default function TasksClient({
   tasks: initialTasks, projects, users,
-  isAdmin, isCoordinador, isColaborador,
+  isAdmin, isCoordinador, isColaborador, isReportes = false,
   currentUserId, currentUserName
 }: TasksClientProps) {
   const [tasks, setTasks] = useState(initialTasks)
@@ -36,12 +37,11 @@ export default function TasksClient({
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [conflictData, setConflictData] = useState<any>(null)
 
-  // Coordinador y colaborador pueden crear tareas
-  const canCreate = isAdmin || isCoordinador || isColaborador
-  // Solo admin puede editar/eliminar tareas de otros
-  // Coordinador puede editar tareas de sus colaboradores
-  // Colaborador solo puede cambiar estado de sus tareas y crear propias
+  // REPORTES no puede crear ni editar tareas
+  const canCreate = !isReportes && (isAdmin || isCoordinador || isColaborador)
+
   const canManageTask = (task: any) => {
+    if (isReportes) return false
     if (isAdmin) return true
     if (isCoordinador) return true
     if (isColaborador) return task.userId === currentUserId
@@ -49,6 +49,7 @@ export default function TasksClient({
   }
 
   const canEditTask = (task: any) => {
+    if (isReportes) return false
     if (isAdmin) return true
     if (isCoordinador) return true
     if (isColaborador) return task.userId === currentUserId
@@ -67,18 +68,15 @@ export default function TasksClient({
     const method = editTask ? 'PATCH' : 'POST'
     const url = editTask ? `/api/tasks/${editTask.id}` : '/api/tasks'
     const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
+      method, headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(taskData),
     })
     const data = await res.json()
-
     if (res.status === 409 && data.conflicts) {
       setConflictData({ taskData, conflicts: data.conflicts, editTask })
       return false
     }
     if (!res.ok) { toast.error(data.error || 'Error al guardar'); return false }
-
     if (editTask) {
       setTasks(prev => prev.map(t => t.id === data.id ? data : t))
       toast.success('Tarea actualizada')
@@ -86,24 +84,20 @@ export default function TasksClient({
       setTasks(prev => [data, ...prev])
       toast.success('Tarea creada')
     }
-    setShowModal(false)
-    setEditTask(null)
+    setShowModal(false); setEditTask(null)
     return true
   }
 
   async function handleDelete(id: string) {
     if (!confirm('¿Eliminar esta tarea?')) return
     const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      setTasks(prev => prev.filter(t => t.id !== id))
-      toast.success('Tarea eliminada')
-    } else toast.error('Error al eliminar')
+    if (res.ok) { setTasks(prev => prev.filter(t => t.id !== id)); toast.success('Tarea eliminada') }
+    else toast.error('Error al eliminar')
   }
 
   async function handleStatusChange(id: string, status: string, pauseReason?: string) {
     const res = await fetch(`/api/tasks/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, pauseReason }),
     })
     if (res.ok) {
@@ -117,19 +111,13 @@ export default function TasksClient({
     const body = { ...taskData, forceCreate: action === 'force' }
     const method = conflictData.editTask ? 'PATCH' : 'POST'
     const url = conflictData.editTask ? `/api/tasks/${conflictData.editTask.id}` : '/api/tasks'
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (res.ok) {
       const data = await res.json()
       if (conflictData.editTask) setTasks(prev => prev.map(t => t.id === data.id ? data : t))
       else setTasks(prev => [data, ...prev])
       toast.success('Tarea guardada')
-      setConflictData(null)
-      setShowModal(false)
-      setEditTask(null)
+      setConflictData(null); setShowModal(false); setEditTask(null)
     }
   }
 
@@ -141,7 +129,10 @@ export default function TasksClient({
     TERMINADO: tasks.filter(t => t.status === 'TERMINADO').length,
   }), [tasks])
 
-  const pageTitle = isAdmin ? 'Tareas' : isCoordinador ? 'Tareas del equipo' : 'Mis Tareas'
+  const pageTitle = isReportes ? 'Tareas'
+    : isAdmin ? 'Tareas'
+    : isCoordinador ? 'Tareas del equipo'
+    : 'Mis Tareas'
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -158,15 +149,13 @@ export default function TasksClient({
         )}
       </div>
 
-      
-
       <div className="flex flex-wrap gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             className="input pl-9 w-56" placeholder="Buscar tareas..." />
         </div>
-        {(isAdmin || isCoordinador) && (
+        {(isAdmin || isCoordinador || isReportes) && (
           <>
             <select value={projectFilter} onChange={e => setProjectFilter(e.target.value)} className="input w-48">
               <option value="ALL">Todos los proyectos</option>
@@ -174,7 +163,7 @@ export default function TasksClient({
             </select>
             <select value={userFilter} onChange={e => setUserFilter(e.target.value)} className="input w-44">
               <option value="ALL">Todos los usuarios</option>
-              {(isAdmin ? users : users).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </>
         )}
@@ -187,9 +176,7 @@ export default function TasksClient({
             <button key={status} onClick={() => setStatusFilter(status)}
               className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all',
                 statusFilter === status
-                  ? status === 'ALL'
-                    ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                    : cn(colors?.bg, colors?.text, 'ring-1', colors?.border)
+                  ? status === 'ALL' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : cn(colors?.bg, colors?.text, 'ring-1', colors?.border)
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-neutral-800 dark:text-gray-400')}>
               {status === 'ALL' ? 'Todas' : getStatusLabel(status)}
               <span className="text-xs opacity-70">({statusCounts[status]})</span>
@@ -203,7 +190,7 @@ export default function TasksClient({
           <TaskCard
             key={task.id}
             task={task}
-            isAdmin={isAdmin || isCoordinador} // coordinador tiene permisos de gestión
+            isAdmin={isAdmin || isCoordinador}
             currentUserId={currentUserId}
             onEdit={canEditTask(task) ? (t) => { setEditTask(t); setShowModal(true) } : undefined}
             onDelete={canEditTask(task) ? handleDelete : undefined}
@@ -221,7 +208,7 @@ export default function TasksClient({
         <TaskModal
           task={editTask}
           projects={projects}
-          users={isColaborador ? [] : users} // colaborador no asigna a otros
+          users={isColaborador ? [] : users}
           isAdmin={isAdmin || isCoordinador}
           currentUserId={currentUserId}
           currentUserName={currentUserName}
