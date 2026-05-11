@@ -48,7 +48,7 @@ function ChatWindow({
   win, currentUserId, isGroup, team, msgs,
   inputs, setInputs, showEmojis, setShowEmojis, showGroupInfo, setShowGroupInfo,
   loading, editingName, newGroupName, setNewGroupName, setEditingName,
-  messagesEndRefs, inputRefs, fileInputRefs,
+  messagesEndRefs, inputRefs, fileInputRefs, scrollContainerRefs, handleScroll,
   handleToggleMinimize, sendDM, sendGroupMsg, saveGroupName,
   handleKeyDown, closeChatWindow, setLightboxUrl, isCoordinador,
 }: any) {
@@ -178,7 +178,10 @@ function ChatWindow({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div
+            ref={(el: any) => { if (scrollContainerRefs) scrollContainerRefs.current[win.id] = el }}
+            onScroll={() => handleScroll && handleScroll(win.id)}
+            className="flex-1 overflow-y-auto p-3 space-y-2">
             {msgs.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center py-6">
                 <MessageCircle className="w-6 h-6 text-gray-300 mb-2" />
@@ -313,6 +316,17 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
   const messagesEndRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const scrollContainerRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const userScrolledUp = useRef<Record<string, boolean>>({})
+
+  // Detectar si el usuario scrolleó hacia arriba
+  function handleScroll(winId: string) {
+    const container = scrollContainerRefs.current[winId]
+    if (!container) return
+    const { scrollTop, scrollHeight, clientHeight } = container
+    // Si está a más de 80px del fondo, consideramos que scrolleó arriba
+    userScrolledUp.current[winId] = scrollHeight - scrollTop - clientHeight > 80
+  }
 
   const otherUsers = users.filter(u => u.id !== currentUserId)
   const totalUnread = Object.values(dmUnread).reduce((a, b) => a + b, 0) + groupUnread
@@ -321,6 +335,8 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
   useEffect(() => {
     chatWindows.forEach(win => {
       if (win.minimized) return
+      // Solo scroll automático si el usuario NO scrolleó hacia arriba
+      if (userScrolledUp.current[win.id]) return
       const el = messagesEndRefs.current[win.id]
       if (!el) return
       el.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
@@ -490,6 +506,8 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
             messagesEndRefs={messagesEndRefs}
             inputRefs={inputRefs}
             fileInputRefs={fileInputRefs}
+            scrollContainerRefs={scrollContainerRefs}
+            handleScroll={handleScroll}
             handleToggleMinimize={handleToggleMinimize}
             sendDM={sendDM} sendGroupMsg={sendGroupMsg} saveGroupName={saveGroupName}
             handleKeyDown={handleKeyDown}
