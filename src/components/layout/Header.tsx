@@ -25,7 +25,10 @@ export default function Header({ userName, userEmail, userRole, userColor, curre
   const avatarColor = userColor || '#6366F1'
   const initials = getInitials(userName || '')
 
-  const roleLabel = userRole === 'ADMIN' ? 'Admin' : userRole === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'
+  const roleLabel = userRole === 'ADMIN' ? 'Admin'
+    : userRole === 'COORDINADOR' ? 'Coordinador'
+    : userRole === 'REPORTES' ? 'Reportes'
+    : 'Colaborador'
 
   async function handleNotificationClick(notif: any) {
     markNotificationRead(notif.id)
