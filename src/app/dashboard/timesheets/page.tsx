@@ -8,11 +8,16 @@ export default async function TimesheetsPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
-  const isAdmin = session.user.role === 'ADMIN'
+  const role = session.user.role
+  const isAdmin = role === 'ADMIN'
+  const isReportes = role === 'REPORTES'
+
+  // REPORTES ve todo igual que ADMIN pero no puede registrar horas
+  const canSeeAll = isAdmin || isReportes
 
   const [entries, workPlans, projects, users, tasks, myTasks] = await Promise.all([
     prisma.timeEntry.findMany({
-      where: isAdmin ? {} : { userId: session.user.id },
+      where: canSeeAll ? {} : { userId: session.user.id },
       include: {
         task: { include: { project: true } },
         user: { select: { id: true, name: true, color: true } },
@@ -20,7 +25,7 @@ export default async function TimesheetsPage() {
       orderBy: { date: 'desc' },
     }),
     prisma.workPlan.findMany({
-      where: isAdmin ? {} : { userId: session.user.id },
+      where: canSeeAll ? {} : { userId: session.user.id },
       include: {
         task: { include: { project: true } },
         user: { select: { id: true, name: true, color: true } },
@@ -28,18 +33,20 @@ export default async function TimesheetsPage() {
       orderBy: { date: 'asc' },
     }),
     prisma.project.findMany({ orderBy: { name: 'asc' } }),
-    isAdmin
+    canSeeAll
       ? prisma.user.findMany({ select: { id: true, name: true, color: true }, orderBy: { name: 'asc' } })
       : prisma.user.findMany({ where: { id: session.user.id }, select: { id: true, name: true, color: true } }),
-    isAdmin
+    canSeeAll
       ? prisma.task.findMany({ include: { project: true }, orderBy: { name: 'asc' } })
       : Promise.resolve([]),
-    // Tareas asignadas al usuario actual (para la vista semanal de registro)
-    prisma.task.findMany({
-      where: { userId: session.user.id },
-      include: { project: true },
-      orderBy: { name: 'asc' },
-    }),
+    // REPORTES no registra horas → myTasks vacío para que no vea la vista semanal de registro
+    isReportes
+      ? Promise.resolve([])
+      : prisma.task.findMany({
+          where: { userId: session.user.id },
+          include: { project: true },
+          orderBy: { name: 'asc' },
+        }),
   ])
 
   return (
@@ -51,6 +58,7 @@ export default async function TimesheetsPage() {
       tasks={tasks as any}
       myTasks={myTasks as any}
       isAdmin={isAdmin}
+      isReportes={isReportes}
       currentUserId={session.user.id}
       currentUserColor={(session.user as any).color}
     />
