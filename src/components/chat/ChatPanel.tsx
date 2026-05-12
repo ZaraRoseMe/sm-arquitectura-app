@@ -293,7 +293,7 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
   const {
     chatWindows, openChatWindow, openMinimized, closeChatWindow,
     minimizeChatWindow, maximizeChatWindow,
-    setChatWindowUnread, clearChatWindowUnread,
+    setChatWindowUnread, clearChatWindowUnread, onlineUsers,
   } = useAppStore()
 
   const { playChatSound } = useSounds()
@@ -548,11 +548,17 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
                   <button key={u.id} onClick={() => openDM(u)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors text-left">
                     <div className="relative flex-shrink-0">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ backgroundColor: u.color || '#6366F1' }}>{getInitials(u.name)}</div>
+                      {onlineUsers.includes(u.id) && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-neutral-900 rounded-full" />
+                      )}
                       {dmUnread[u.id] > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">{dmUnread[u.id]}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.name}</p>
-                      {dmUnread[u.id] > 0 && <p className="text-xs text-brand-500">{dmUnread[u.id]} nuevo{dmUnread[u.id] > 1 ? 's' : ''}</p>}
+                      {onlineUsers.includes(u.id)
+                        ? <p className="text-xs text-emerald-500">En línea</p>
+                        : dmUnread[u.id] > 0 && <p className="text-xs text-brand-500">{dmUnread[u.id]} nuevo{dmUnread[u.id] > 1 ? 's' : ''}</p>
+                      }
                     </div>
                   </button>
                 ))}
