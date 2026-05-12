@@ -201,7 +201,7 @@ export default function TaskCard({ task, isAdmin, isReportes = false, currentUse
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">{(task as any).project?.name}</p>
           </div>
-          {canEdit && isAdmin && (
+          {canEdit && (
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button onClick={() => onEdit(task)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30 transition-colors">
                 <Edit2 className="w-3.5 h-3.5" />
