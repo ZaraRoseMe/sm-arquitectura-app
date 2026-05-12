@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-// Parse YYYY-MM-DD as local noon to avoid UTC offset
 function parseLocalDate(dateStr: string): Date {
   const [y, m, d] = dateStr.substring(0, 10).split('-').map(Number)
   return new Date(y, m - 1, d, 12, 0, 0)
@@ -95,10 +94,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const role = session.user.role
+  const isAdmin = role === 'ADMIN'
+  const isCoordinador = role === 'COORDINADOR'
+  const isColaborador = role === 'COLABORADOR'
+
+  // Buscar la tarea para verificar permisos
+  const task = await prisma.task.findUnique({ where: { id }, select: { userId: true } })
+  if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // ADMIN y COORDINADOR pueden eliminar cualquier tarea
+  // COLABORADOR solo puede eliminar sus propias tareas
+  if (!isAdmin && !isCoordinador && !(isColaborador && task.userId === session.user.id)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-  const { id } = await params
+
   await prisma.task.delete({ where: { id } })
   return NextResponse.json({ success: true })
 }
