@@ -29,8 +29,10 @@ export async function POST(req: NextRequest) {
   const isAdmin = role === 'ADMIN'
   const isCoordinador = role === 'COORDINADOR'
 
+  const isColaborador = role === 'COLABORADOR'
+
   // REPORTES no puede crear tareas
-  if (!isAdmin && !isCoordinador) {
+  if (!isAdmin && !isCoordinador && !isColaborador) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
