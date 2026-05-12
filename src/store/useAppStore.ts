@@ -21,6 +21,7 @@ interface AppStore {
   notifications: Notification[]
   unreadCount: number
   chatWindows: ChatWindow[]
+  onlineUsers: string[]
 
   toggleSidebar: () => void
   toggleDarkMode: () => void
@@ -30,6 +31,7 @@ interface AppStore {
   markNotificationRead: (id: string) => void
   markAllRead: () => void
   addNotification: (notification: Notification) => void
+  setOnlineUsers: (ids: string[]) => void
 
   openChatWindow: (win: Omit<ChatWindow, 'minimized' | 'unread'>) => void
   openMinimized: (win: Omit<ChatWindow, 'minimized' | 'unread'>) => void
@@ -50,6 +52,7 @@ export const useAppStore = create<AppStore>()(
       notifications: [],
       unreadCount: 0,
       chatWindows: [],
+      onlineUsers: [],
 
       toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
       toggleDarkMode: () => set(state => {
@@ -76,28 +79,20 @@ export const useAppStore = create<AppStore>()(
         notifications: [notification, ...state.notifications],
         unreadCount: state.unreadCount + 1,
       })),
+      setOnlineUsers: (ids) => set({ onlineUsers: ids }),
 
-      // ─── Chat window actions ───────────────────────────────────────────────
       openChatWindow: (win) => set(state => {
         const exists = state.chatWindows.find(w => w.id === win.id)
         if (exists) {
-          return {
-            chatWindows: state.chatWindows.map(w =>
-              w.id === win.id ? { ...w, minimized: false, unread: 0, lastSender: undefined } : w
-            )
-          }
+          return { chatWindows: state.chatWindows.map(w => w.id === win.id ? { ...w, minimized: false, unread: 0, lastSender: undefined } : w) }
         }
-        return {
-          chatWindows: [{ ...win, minimized: false, unread: 0 }, ...state.chatWindows]
-        }
+        return { chatWindows: [{ ...win, minimized: false, unread: 0 }, ...state.chatWindows] }
       }),
 
       openMinimized: (win) => set(state => {
         const exists = state.chatWindows.find(w => w.id === win.id)
         if (exists) return state
-        return {
-          chatWindows: [...state.chatWindows, { ...win, minimized: true, unread: 0 }]
-        }
+        return { chatWindows: [...state.chatWindows, { ...win, minimized: true, unread: 0 }] }
       }),
 
       closeChatWindow: (id) => set(state => ({
@@ -109,26 +104,20 @@ export const useAppStore = create<AppStore>()(
       })),
 
       maximizeChatWindow: (id) => set(state => ({
-        chatWindows: state.chatWindows.map(w =>
-          w.id === id ? { ...w, minimized: false, unread: 0, lastSender: undefined } : w
-        )
+        chatWindows: state.chatWindows.map(w => w.id === id ? { ...w, minimized: false, unread: 0, lastSender: undefined } : w)
       })),
 
       setChatWindowUnread: (id, count, lastSender) => set(state => ({
-        chatWindows: state.chatWindows.map(w =>
-          w.id === id ? { ...w, unread: count, lastSender } : w
-        )
+        chatWindows: state.chatWindows.map(w => w.id === id ? { ...w, unread: count, lastSender } : w)
       })),
 
       clearChatWindowUnread: (id) => set(state => ({
-        chatWindows: state.chatWindows.map(w =>
-          w.id === id ? { ...w, unread: 0, lastSender: undefined } : w
-        )
+        chatWindows: state.chatWindows.map(w => w.id === id ? { ...w, unread: 0, lastSender: undefined } : w)
       })),
     }),
     {
-      name: 'kronoz-ui',           // clave en localStorage
-      partialize: (state) => ({    // solo persistir lo necesario
+      name: 'kronoz-ui',
+      partialize: (state) => ({
         darkMode: state.darkMode,
         chatWindows: state.chatWindows,
       }),
