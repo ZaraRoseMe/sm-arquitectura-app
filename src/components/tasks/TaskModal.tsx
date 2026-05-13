@@ -279,14 +279,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   const selectedUser = users.find(u => u.id === form.userId)
 
   // Usuarios disponibles para asignar:
-  // ADMIN: todos los usuarios
-  // COORDINADOR: él mismo + su equipo (users ya viene filtrado desde el page)
-  const assignableUsers = isAdmin
-    ? users
-    : users.length > 0
-      ? [{ id: currentUserId, name: currentUserName, role: 'COORDINADOR' } as any, ...users]
-      : []
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up max-h-[90vh] overflow-y-auto"
