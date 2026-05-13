@@ -9,8 +9,17 @@ import { useAppStore } from '@/store/useAppStore'
 import { useSounds } from '@/hooks/useSounds'
 import { useUploadThing } from '@/lib/uploadthing'
 
-// Cargar emoji-mart solo en cliente
-const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false })
+// Cargar emoji picker solo en cliente para evitar SSR issues
+const EmojiPickerWrapper = dynamic(() => import('./EmojiPickerWrapper'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-wrap gap-1 p-2">
+      {['😊','😂','👍','❤️','🔥','✅','⚠️','📋','👏','🙌','💪','🤔','👀','🚀','⏰','💬','🎉','👋','💡','🤝'].map(e => (
+        <button key={e} className="text-base hover:scale-125 transition-transform">{e}</button>
+      ))}
+    </div>
+  )
+})
 
 const EMOJIS = ['😊','😂','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','🤔','👀','✍️','📌','🚀','⏰','💬']
 
@@ -58,32 +67,8 @@ function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
 
 // Picker de emojis con emoji-mart
 function EmojiPicker({ onSelect, darkMode }: { onSelect: (emoji: string) => void; darkMode: boolean }) {
-  const [data, setData] = useState<any>(null)
-
-  useEffect(() => {
-    import('@emoji-mart/data').then(d => setData(d.default))
-  }, [])
-
-  if (!data) return (
-    <div className="flex flex-wrap gap-1 p-2">
-      {['😊','😂','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','🤔','👀','✍️','📌','🚀','⏰','💬'].map(e => (
-        <button key={e} onClick={() => onSelect(e)} className="text-base hover:scale-125 transition-transform">{e}</button>
-      ))}
-    </div>
-  )
-
   return (
-    <Picker
-      data={data}
-      onEmojiSelect={(e: any) => onSelect(e.native)}
-      theme={darkMode ? 'dark' : 'light'}
-      locale="es"
-      previewPosition="none"
-      skinTonePosition="none"
-      navPosition="bottom"
-      perLine={8}
-      maxFrequentRows={2}
-    />
+    <EmojiPickerWrapper onSelect={onSelect} darkMode={darkMode} />
   )
 }
   win, currentUserId, isGroup, team, msgs,
