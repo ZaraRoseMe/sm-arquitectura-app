@@ -98,7 +98,7 @@ export default async function TasksPage() {
         })
       : isCoordinador
         ? prisma.user.findMany({
-            where: { id: { in: teamMemberIds } },
+            where: { id: { in: [session.user.id, ...teamMemberIds] } },
             select: { id: true, name: true, email: true, role: true, color: true },
           })
         : Promise.resolve([]),
