@@ -1,12 +1,16 @@
 'use client'
 // src/components/chat/ChatPanel.tsx
 import { useState, useEffect, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { Send, MessageCircle, SmilePlus, ChevronDown, ChevronUp, Users, X, MoreHorizontal, Edit2, Check, Paperclip } from 'lucide-react'
 import { getInitials, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/useAppStore'
 import { useSounds } from '@/hooks/useSounds'
 import { useUploadThing } from '@/lib/uploadthing'
+
+// Cargar emoji-mart solo en cliente
+const Picker = dynamic(() => import('@emoji-mart/react'), { ssr: false })
 
 const EMOJIS = ['😊','😂','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','🤔','👀','✍️','📌','🚀','⏰','💬']
 
@@ -52,58 +56,35 @@ function ImageLightbox({ url, onClose }: { url: string; onClose: () => void }) {
   )
 }
 
-// Picker de emojis con emoji-mart cargado dinámicamente
-function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void }) {
-  const pickerRef = useRef<HTMLDivElement>(null)
+// Picker de emojis con emoji-mart
+function EmojiPicker({ onSelect, darkMode }: { onSelect: (emoji: string) => void; darkMode: boolean }) {
+  const [data, setData] = useState<any>(null)
 
   useEffect(() => {
-    let picker: any = null
-    async function loadPicker() {
-      try {
-        const [{ Picker }, data] = await Promise.all([
-          import('@emoji-mart/react'),
-          import('@emoji-mart/data'),
-        ])
-        picker = new Picker({
-          data,
-          onEmojiSelect: (e: any) => onSelect(e.native),
-          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-          locale: 'es',
-          previewPosition: 'none',
-          skinTonePosition: 'none',
-          navPosition: 'bottom',
-          perLine: 8,
-          maxFrequentRows: 2,
-        })
-        if (pickerRef.current) {
-          pickerRef.current.innerHTML = ''
-          pickerRef.current.appendChild(picker)
-        }
-      } catch {
-        // fallback — mostrar grid simple si emoji-mart no está disponible
-        if (pickerRef.current) {
-          pickerRef.current.innerHTML = ''
-          const grid = document.createElement('div')
-          grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;padding:8px;'
-          const emojis = ['😊','😂','😍','🥺','😭','😤','🤔','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','👀','🚀','⏰','💬','🎉','👋','💡','📌','✍️','🤝']
-          emojis.forEach(e => {
-            const btn = document.createElement('button')
-            btn.textContent = e
-            btn.style.cssText = 'font-size:18px;cursor:pointer;padding:4px;border:none;background:none;border-radius:6px;transition:transform 0.1s;'
-            btn.onmouseover = () => { btn.style.transform = 'scale(1.3)' }
-            btn.onmouseleave = () => { btn.style.transform = 'scale(1)' }
-            btn.onclick = () => onSelect(e)
-            grid.appendChild(btn)
-          })
-          pickerRef.current.appendChild(grid)
-        }
-      }
-    }
-    loadPicker()
-    return () => { picker = null }
-  }, [onSelect])
+    import('@emoji-mart/data').then(d => setData(d.default))
+  }, [])
 
-  return <div ref={pickerRef} style={{ width: '100%' }} />
+  if (!data) return (
+    <div className="flex flex-wrap gap-1 p-2">
+      {['😊','😂','👍','❤️','🔥','✅','⚠️','📋','🏗️','📅','👏','🙌','💪','🤔','👀','✍️','📌','🚀','⏰','💬'].map(e => (
+        <button key={e} onClick={() => onSelect(e)} className="text-base hover:scale-125 transition-transform">{e}</button>
+      ))}
+    </div>
+  )
+
+  return (
+    <Picker
+      data={data}
+      onEmojiSelect={(e: any) => onSelect(e.native)}
+      theme={darkMode ? 'dark' : 'light'}
+      locale="es"
+      previewPosition="none"
+      skinTonePosition="none"
+      navPosition="bottom"
+      perLine={8}
+      maxFrequentRows={2}
+    />
+  )
 }
   win, currentUserId, isGroup, team, msgs,
   inputs, setInputs, showEmojis, setShowEmojis, showGroupInfo, setShowGroupInfo,
@@ -312,6 +293,7 @@ function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void }) {
           {isEmoji && (
             <div className="border-t border-gray-100 dark:border-neutral-800">
               <EmojiPicker
+                darkMode={document.documentElement.classList.contains('dark')}
                 onSelect={(emoji: string) => {
                   setInputs((prev: any) => ({ ...prev, [win.id]: (prev[win.id] || '') + emoji }))
                   inputRefs.current[win.id]?.focus()
