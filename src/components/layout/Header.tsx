@@ -1,11 +1,12 @@
 'use client'
 // src/components/layout/Header.tsx
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Bell, Moon, Sun, LogOut, ChevronDown } from 'lucide-react'
+import { Bell, Moon, Sun, LogOut, ChevronDown, BellOff } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { getInitials, formatDate } from '@/lib/utils'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 interface HeaderProps {
   userName: string
@@ -21,6 +22,8 @@ export default function Header({ userName, userEmail, userRole, userColor, curre
   const { darkMode, toggleDarkMode, notifications, unreadCount, markNotificationRead, markAllRead } = useAppStore()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+
+  const { permission, subscribed, subscribe, unsubscribe } = usePushNotifications()
 
   const avatarColor = userColor || '#6366F1'
   const initials = getInitials(userName || '')
@@ -57,6 +60,20 @@ export default function Header({ userName, userEmail, userRole, userColor, curre
         <button onClick={toggleDarkMode} className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
           {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
+
+        {/* Botón notificaciones push */}
+        {'Notification' in (typeof window !== 'undefined' ? window : {}) && (
+          <button
+            onClick={subscribed ? unsubscribe : subscribe}
+            title={subscribed ? 'Desactivar notificaciones push' : 'Activar notificaciones push'}
+            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+              subscribed
+                ? 'text-brand-600 bg-brand-50 dark:bg-brand-950/30 hover:bg-brand-100'
+                : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800'
+            }`}>
+            {subscribed ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+          </button>
+        )}
 
         {/* Notifications */}
         <div className="relative">
