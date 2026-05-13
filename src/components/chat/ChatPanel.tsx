@@ -134,7 +134,7 @@ function ChatWindow({
   }
 
   return (
-    <div className="flex flex-col bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl border border-b-0 border-gray-100 dark:border-neutral-800"
+    <div className="flex flex-col bg-white dark:bg-neutral-900 rounded-t-2xl shadow-2xl border border-b-0 border-gray-100 dark:border-neutral-800 relative"
       style={{ width: WIN_WIDTH, height: win.minimized ? 'auto' : 420 }}>
 
       {/* Header */}
@@ -278,11 +278,22 @@ function ChatWindow({
           </div>
 
           {isEmoji && (
-            <div className="border-t border-gray-100 dark:border-neutral-800">
+            <div
+              className="absolute bottom-12 left-0 z-50 shadow-2xl rounded-xl overflow-hidden"
+              style={{ width: 320 }}>
+              <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-neutral-800 border-b border-gray-100 dark:border-neutral-700">
+                <span className="text-xs text-gray-500 font-medium">Emojis</span>
+                <button
+                  onClick={() => setShowEmojis((prev: any) => ({ ...prev, [win.id]: false }))}
+                  className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <EmojiPicker
                 darkMode={document.documentElement.classList.contains('dark')}
                 onSelect={(emoji: string) => {
                   setInputs((prev: any) => ({ ...prev, [win.id]: (prev[win.id] || '') + emoji }))
+                  setShowEmojis((prev: any) => ({ ...prev, [win.id]: false }))
                   inputRefs.current[win.id]?.focus()
                 }}
               />
