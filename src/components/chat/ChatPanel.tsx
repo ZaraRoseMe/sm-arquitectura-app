@@ -49,6 +49,7 @@ function ChatWindow({
   inputs, setInputs, showEmojis, setShowEmojis, showGroupInfo, setShowGroupInfo,
   loading, editingName, newGroupName, setNewGroupName, setEditingName,
   messagesEndRefs, inputRefs, fileInputRefs, scrollContainerRefs, handleScroll,
+  currentUserColor,
   handleToggleMinimize, sendDM, sendGroupMsg, saveGroupName,
   handleKeyDown, closeChatWindow, setLightboxUrl, isCoordinador,
 }: any) {
@@ -220,7 +221,7 @@ function ChatWindow({
                       ) : (
                         <div className="px-2.5 py-1.5 rounded-2xl text-xs"
                           style={isMe
-                            ? { backgroundColor: `${win.color}22`, borderBottomRightRadius: 4 }
+                            ? { backgroundColor: `${currentUserColor}22`, borderBottomRightRadius: 4 }
                             : { backgroundColor: `${msg.sender?.color || '#6366F1'}18`, borderBottomLeftRadius: 4 }
                           }>
                           <p className="break-words leading-relaxed text-gray-900 dark:text-gray-100">{msg.content}</p>
@@ -292,6 +293,7 @@ function ChatWindow({
 }
 
 export default function ChatPanel({ currentUserId, users, team: initialTeam, userRole }: ChatPanelProps) {
+  const currentUserColor = users.find(u => u.id === currentUserId)?.color || '#6366F1'
   const {
     chatWindows, openChatWindow, openMinimized, closeChatWindow,
     minimizeChatWindow, maximizeChatWindow,
@@ -510,6 +512,7 @@ export default function ChatPanel({ currentUserId, users, team: initialTeam, use
             fileInputRefs={fileInputRefs}
             scrollContainerRefs={scrollContainerRefs}
             handleScroll={handleScroll}
+            currentUserColor={currentUserColor}
             handleToggleMinimize={handleToggleMinimize}
             sendDM={sendDM} sendGroupMsg={sendGroupMsg} saveGroupName={saveGroupName}
             handleKeyDown={handleKeyDown}
