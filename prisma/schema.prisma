@@ -45,6 +45,7 @@ model User {
   ledTeam            Team?           @relation("TeamCoordinator")
   teamMemberships    TeamMember[]
   groupMessagesSent  GroupMessage[]
+  pushSubscriptions  PushSubscription[]
 
   @@map("users")
 }
@@ -201,4 +202,16 @@ model GroupMessage {
   sender    User     @relation(fields: [senderId], references: [id])
 
   @@map("group_messages")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@map("push_subscriptions")
 }
