@@ -4,6 +4,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { differenceInCalendarDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { sendPushToUser } from '@/lib/push'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -79,12 +80,22 @@ export async function POST(req: NextRequest) {
     const days = differenceInCalendarDays(new Date(endDate), new Date(startDate)) + 1
     const startFmt = format(new Date(startDate), "dd 'de' MMMM", { locale: es })
     const endFmt = format(new Date(endDate), "dd 'de' MMMM", { locale: es })
+    const notifMsg = `"${name}" — del ${startFmt} al ${endFmt} (${days} días). Proyecto: ${task.project.name}`
+
     await prisma.notification.create({
       data: {
         userId, taskId: task.id,
         title: '📋 Nueva tarea asignada',
-        message: `"${name}" — del ${startFmt} al ${endFmt} (${days} días). Proyecto: ${task.project.name}`,
+        message: notifMsg,
       },
+    })
+
+    // Enviar push notification
+    await sendPushToUser(userId, {
+      title: '📋 Nueva tarea asignada — KRONOZ',
+      body: notifMsg,
+      url: `/dashboard/tasks`,
+      tag: `task-${task.id}`,
     })
   }
 
