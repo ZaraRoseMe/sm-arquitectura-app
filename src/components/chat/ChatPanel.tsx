@@ -218,11 +218,13 @@ function ChatWindow({
                           </p>
                         </div>
                       ) : (
-                        <div className={cn('px-2.5 py-1.5 rounded-2xl text-xs',
-                          isMe ? 'rounded-br-sm text-white' : 'bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-white rounded-bl-sm')}
-                          style={isMe ? { backgroundColor: win.color } : undefined}>
-                          <p className="break-words leading-relaxed">{msg.content}</p>
-                          <p className={cn('text-[9px] mt-0.5 text-right', isMe ? 'text-white/60' : 'text-gray-400')}>
+                        <div className="px-2.5 py-1.5 rounded-2xl text-xs"
+                          style={isMe
+                            ? { backgroundColor: `${win.color}22`, borderBottomRightRadius: 4 }
+                            : { backgroundColor: `${msg.sender?.color || '#6366F1'}18`, borderBottomLeftRadius: 4 }
+                          }>
+                          <p className="break-words leading-relaxed text-gray-900 dark:text-gray-100">{msg.content}</p>
+                          <p className="text-[9px] mt-0.5 text-right text-gray-400 dark:text-gray-500">
                             {new Date(msg.createdAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                             {isMe && !isGroup && <span className="ml-1">{msg.read ? '✓✓' : '✓'}</span>}
                           </p>
