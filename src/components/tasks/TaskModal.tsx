@@ -153,9 +153,11 @@ function ProjectTreeSelect({ projects, value, onChange }: {
 
 export default function TaskModal({ task, projects, users, isAdmin, currentUserId, currentUserName, onClose, onSave }: TaskModalProps) {
   const existingEntries = parseDescriptionEntries((task as any)?.description)
-  const isCoordinador = !isAdmin && users.length > 0 // si recibe usuarios pero no es admin, es coordinador
-
-  const [form, setForm] = useState({
+  // Si no es admin, puede ser coordinador o colaborador
+  // El coordinador siempre debe poder asignarse tareas a sí mismo
+  const assignableUsers = isAdmin
+    ? users
+    : [{ id: currentUserId, name: currentUserName, role: 'COORDINADOR' } as any, ...users.filter(u => u.id !== currentUserId)]
     name: task?.name || '',
     startDate: task ? formatDateInput(task.startDate) : '',
     endDate: task ? formatDateInput(task.endDate) : '',
@@ -346,7 +348,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
           </div>
 
           {/* Assign — ADMIN ve todos; COORDINADOR ve su equipo + él mismo */}
-          {(isAdmin || assignableUsers.length > 1) && (
+          {(isAdmin || !isAdmin) && assignableUsers.length > 0 && (
             <div>
               <label className="label">Asignar a *</label>
               <select className="input" value={form.userId}
