@@ -71,6 +71,8 @@ function EmojiPicker({ onSelect, darkMode }: { onSelect: (emoji: string) => void
     <EmojiPickerWrapper onSelect={onSelect} darkMode={darkMode} />
   )
 }
+
+function ChatWindow({
   win, currentUserId, isGroup, team, msgs,
   inputs, setInputs, showEmojis, setShowEmojis, showGroupInfo, setShowGroupInfo,
   loading, editingName, newGroupName, setNewGroupName, setEditingName,
