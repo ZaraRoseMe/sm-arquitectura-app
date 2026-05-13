@@ -23,7 +23,7 @@ interface WorkDay {
 
 interface TaskModalProps {
   task: Task | null
-  projects: any[]   // árbol de proyectos con children
+  projects: any[]
   users: User[]
   isAdmin: boolean
   currentUserId: string
@@ -47,7 +47,6 @@ function dateStr(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-// Aplana el árbol de proyectos con profundidad para el selector jerárquico
 function flattenProjects(projects: any[], depth = 0): { project: any; depth: number }[] {
   return projects.flatMap(p => [
     { project: p, depth },
@@ -55,12 +54,11 @@ function flattenProjects(projects: any[], depth = 0): { project: any; depth: num
   ])
 }
 
-// ─── Dropdown jerárquico de proyectos ────────────────────────────────────────
 function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
   project: any; depth: number; selectedId: string
   onSelect: (id: string, name: string) => void; onClose: () => void
 }) {
-  const [expanded, setExpanded] = useState(false)  // todos colapsados por default
+  const [expanded, setExpanded] = useState(false)
   const hasChildren = (project.children || []).length > 0
   const isSelected = project.id === selectedId
 
@@ -72,7 +70,6 @@ function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
           isSelected ? 'bg-brand-50 dark:bg-brand-950/30' : 'hover:bg-gray-50 dark:hover:bg-neutral-800'
         )}
         style={{ paddingLeft: 12 + depth * 16 }}>
-        {/* Toggle expand */}
         <button type="button"
           className="w-4 h-4 flex items-center justify-center flex-shrink-0"
           onClick={e => { e.preventDefault(); e.stopPropagation(); setExpanded(v => !v) }}>
@@ -83,9 +80,7 @@ function ProjectTreeNode({ project, depth, onSelect, selectedId, onClose }: {
             : <div className="w-1 h-1 rounded-full bg-gray-300 mx-auto" />
           }
         </button>
-        {/* Color dot */}
         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
-        {/* Name */}
         <span
           className={cn('flex-1 text-sm truncate cursor-pointer',
             isSelected ? 'font-semibold text-brand-700 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300'
@@ -138,9 +133,7 @@ function ProjectTreeSelect({ projects, value, onChange }: {
 
       {open && (
         <>
-          {/* Backdrop */}
           <div className="fixed inset-0 z-10" onClick={(e) => { e.preventDefault(); setOpen(false) }} />
-          {/* Dropdown */}
           <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-xl shadow-xl max-h-64 overflow-y-auto py-1">
             {projects.length === 0
               ? <p className="text-sm text-gray-400 px-4 py-3 text-center">No hay proyectos</p>
@@ -160,6 +153,7 @@ function ProjectTreeSelect({ projects, value, onChange }: {
 
 export default function TaskModal({ task, projects, users, isAdmin, currentUserId, currentUserName, onClose, onSave }: TaskModalProps) {
   const existingEntries = parseDescriptionEntries((task as any)?.description)
+  const isCoordinador = !isAdmin && users.length > 0 // si recibe usuarios pero no es admin, es coordinador
 
   const [form, setForm] = useState({
     name: task?.name || '',
@@ -168,13 +162,13 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
     status: task?.status || 'PENDIENTE',
     progress: task?.progress || 0,
     projectId: task?.projectId || '',
+    // ADMIN empieza vacío para elegir; COORDINADOR y COLABORADOR se asignan a sí mismos por default
     userId: task?.userId || (isAdmin ? '' : currentUserId),
   })
   const [newEntry, setNewEntry] = useState('')
   const [entries, setEntries] = useState<DescriptionEntry[]>(existingEntries)
   const [loading, setLoading] = useState(false)
 
-  // Work plan state
   const [showWorkPlan, setShowWorkPlan] = useState(false)
   const [workCalMonth, setWorkCalMonth] = useState(new Date())
   const [workDays, setWorkDays] = useState<Record<string, WorkDay>>({})
@@ -185,7 +179,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   useEffect(() => {
     const uid = form.userId
     if (!uid || !showWorkPlan) return
-
     Promise.all([
       task ? fetch(`/api/work-plans?userId=${uid}`).then(r => r.json()) : Promise.resolve([]),
     ]).then(([allUserPlans]) => {
@@ -209,12 +202,8 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   function toggleWorkDay(date: Date) {
     if (isWeekend(date) || !isSameMonth(date, workCalMonth)) return
     const key = dateStr(date)
-    if (workDays[key]) {
-      setEditingWorkDay(key)
-    } else {
-      setWorkDays(prev => ({ ...prev, [key]: { date: key, hours: 8, minutes: 0 } }))
-      setEditingWorkDay(key)
-    }
+    if (workDays[key]) setEditingWorkDay(key)
+    else { setWorkDays(prev => ({ ...prev, [key]: { date: key, hours: 8, minutes: 0 } })); setEditingWorkDay(key) }
   }
 
   function removeWorkDay(key: string) {
@@ -254,18 +243,13 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   async function saveWorkPlans(taskId: string) {
     if (Object.keys(workDays).length === 0) return
     if (existingPlans.length > 0) {
-      await Promise.all(existingPlans.map(p =>
-        fetch(`/api/work-plans/${p.id}`, { method: 'DELETE' })
-      ))
+      await Promise.all(existingPlans.map(p => fetch(`/api/work-plans/${p.id}`, { method: 'DELETE' })))
     }
     await Promise.all(Object.values(workDays).map(day =>
       fetch('/api/work-plans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          taskId, userId: form.userId,
-          date: day.date, hours: day.hours, minutes: day.minutes,
-        }),
+        body: JSON.stringify({ taskId, userId: form.userId, date: day.date, hours: day.hours, minutes: day.minutes }),
       })
     ))
   }
@@ -290,6 +274,15 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
   })
 
   const selectedUser = users.find(u => u.id === form.userId)
+
+  // Usuarios disponibles para asignar:
+  // ADMIN: todos los usuarios
+  // COORDINADOR: él mismo + su equipo (users ya viene filtrado desde el page)
+  const assignableUsers = isAdmin
+    ? users
+    : users.length > 0
+      ? [{ id: currentUserId, name: currentUserName, role: 'COORDINADOR' } as any, ...users]
+      : []
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -342,7 +335,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
             <p className="text-xs text-gray-400 mt-1">Cada entrada queda registrada con fecha y hora.</p>
           </div>
 
-          {/* Project — dropdown jerárquico custom */}
+          {/* Project */}
           <div>
             <label className="label">Proyecto *</label>
             <ProjectTreeSelect
@@ -352,14 +345,18 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
             />
           </div>
 
-          {/* Assign */}
-          {isAdmin && (
+          {/* Assign — ADMIN ve todos; COORDINADOR ve su equipo + él mismo */}
+          {(isAdmin || assignableUsers.length > 1) && (
             <div>
               <label className="label">Asignar a *</label>
               <select className="input" value={form.userId}
                 onChange={(e) => { setForm({ ...form, userId: e.target.value }); setWorkDays({}); setEditingWorkDay(null) }} required>
-                <option value="">Seleccionar colaborador</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role === 'ADMIN' ? 'Admin' : u.role === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'})</option>)}
+                {isAdmin && <option value="">Seleccionar colaborador</option>}
+                {assignableUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}{u.id === currentUserId ? ' (Tú)' : ''} — {u.role === 'ADMIN' ? 'Admin' : u.role === 'COORDINADOR' ? 'Coordinador' : 'Colaborador'}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -397,7 +394,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
             </div>
           </div>
 
-          {/* Work Plan Calendar */}
+          {/* Work Plan Calendar — solo admin */}
           {isAdmin && form.userId && (
             <div className="border border-gray-100 dark:border-neutral-800 rounded-xl overflow-hidden">
               <button type="button"
@@ -418,14 +415,8 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
               {showWorkPlan && (
                 <div className="p-4 border-t border-gray-100 dark:border-neutral-800 space-y-3">
                   <div className="flex items-center gap-4 text-[10px] text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded-sm bg-emerald-500 opacity-80" />
-                      <span>Programado aquí</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded-sm bg-amber-400 opacity-60" />
-                      <span>Ocupado (otra tarea)</span>
-                    </div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-emerald-500 opacity-80" /><span>Programado aquí</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-amber-400 opacity-60" /><span>Ocupado (otra tarea)</span></div>
                     {selectedUser && (
                       <div className="flex items-center gap-1.5">
                         <div className="w-4 h-4 rounded-full flex items-center justify-center text-white flex-shrink-0"
@@ -466,7 +457,6 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
                       const busy = isBusyDay(day)
                       const weekend = isWeekend(day)
                       const entry = workDays[key]
-
                       return (
                         <button key={key} type="button"
                           onClick={() => isCurrentMonth && !weekend && toggleWorkDay(day)}
@@ -488,8 +478,7 @@ export default function TaskModal({ task, projects, users, isAdmin, currentUserI
                             {format(day, 'd')}
                           </span>
                           {entry && (
-                            <span className={cn('text-[7px] leading-none',
-                              isEditing ? 'text-white/80' : 'text-emerald-600')}>
+                            <span className={cn('text-[7px] leading-none', isEditing ? 'text-white/80' : 'text-emerald-600')}>
                               {formatTime(entry.hours, entry.minutes)}
                             </span>
                           )}
