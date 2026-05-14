@@ -215,7 +215,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   }
 
   const todayOffset = differenceInDays(today, effectiveRangeStart) * cellWidth
-  const LABEL_W = 200
+  const LABEL_W = 260
 
   const TimelineHeader = () => (
     <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
@@ -623,9 +623,16 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                       <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                         <div className="flex items-center gap-1.5">
                           {conflict && <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-                          <p className="text-xs text-gray-700 dark:text-gray-300" title={task.name}>{task.name}</p>
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" title={task.name}>{task.name}</p>
                         </div>
-                        {project && <div className="flex items-center gap-1 mt-0.5"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: project.color }} /><p className="text-xs text-gray-400">{project.name}</p></div>}
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {project && <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} /><p className="text-[10px] text-gray-400 truncate">{project.name}</p></div>}
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <p className="text-[10px] text-gray-400">{format(parseDate(task.startDate), 'dd MMM', { locale: es })}</p>
+                          <span className="text-[10px] text-gray-300">→</span>
+                          <p className="text-[10px] text-gray-400">{format(parseDate(task.endDate), 'dd MMM yyyy', { locale: es })}</p>
+                        </div>
                       </div>
                       <div className="flex-1 h-10 relative" style={{ minWidth: days.length * cellWidth }}>
                         {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
@@ -649,8 +656,15 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                   <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50" style={{ backgroundColor: `${project.color}12` }}>
                     <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                       <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
-                      <span className="text-xs font-bold text-gray-800 dark:text-white">{project.name}</span>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{pt.length} tareas</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-800 dark:text-white truncate">{project.name}</p>
+                        {project.startDate && project.endDate && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {format(parseDate(project.startDate), 'dd MMM yyyy', { locale: es })} → {format(parseDate(project.endDate), 'dd MMM yyyy', { locale: es })}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-gray-400 flex-shrink-0">{pt.length} tareas</span>
                     </div>
                     <div className="flex-1 h-11 relative" style={{ minWidth: days.length * cellWidth }}>
                       {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/50" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
@@ -673,16 +687,19 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                         <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
                           <div className="flex items-center gap-1.5 pl-3">
                             {conflict && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{task.name}</p>
+                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 truncate">{task.name}</p>
                           </div>
-                          {user && (
-                            <div className="flex items-center gap-1 mt-0.5 pl-3">
-                              <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
-                                {getInitials(user.name).charAt(0)}
+                          <div className="flex items-center gap-2 mt-0.5 pl-3">
+                            {user && (
+                              <div className="flex items-center gap-1">
+                                <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
+                                  {getInitials(user.name).charAt(0)}
+                                </div>
+                                <p className="text-[10px] text-gray-400">{user.name.split(' ')[0]}</p>
                               </div>
-                              <p className="text-[10px] text-gray-400">{user.name.split(' ')[0]}</p>
-                            </div>
-                          )}
+                            )}
+                            <p className="text-[10px] text-gray-400">{format(parseDate(task.startDate), 'dd MMM', { locale: es })} → {format(parseDate(task.endDate), 'dd MMM yy', { locale: es })}</p>
+                          </div>
                         </div>
                         <div className="flex-1 relative" style={{ height: 32, minWidth: days.length * cellWidth }}>
                           {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
