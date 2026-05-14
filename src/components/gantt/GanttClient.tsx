@@ -290,7 +290,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     if (conflict) { doc.setDrawColor(245, 158, 11); doc.setLineWidth(0.4); doc.roundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, 0.5, 0.5, 'S') }
     doc.setFillColor(bRgb.r, bRgb.g, bRgb.b); doc.roundedRect(bx, by, bw, bh, 0.5, 0.5, 'F')
     if (task.progress > 0 && task.progress < 100) { doc.setFillColor(Math.min(255, bRgb.r + 50), Math.min(255, bRgb.g + 50), Math.min(255, bRgb.b + 50)); doc.roundedRect(bx, by, bw * (task.progress / 100), bh, 0.5, 0.5, 'F') }
-    if (bw > 8) { doc.setTextColor(255, 255, 255); doc.setFontSize(3.8); doc.setFont('helvetica', 'bold'); const mc = Math.floor(bw / 2); doc.text(task.name.length > mc ? task.name.substring(0, mc - 1) + '…' : task.name, bx + 1.5, by + bh * 0.72) }
+    if (bw > 8) { doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold'); const mc = Math.floor(bw / 2); doc.text(task.name.length > mc ? task.name.substring(0, mc - 1) + '…' : task.name, bx + 1.5, by + bh * 0.72) }
     doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH)
   }
 
@@ -310,7 +310,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
       ws.getRow(1).height = 28
       ws.addRow([])
-      const headers = ['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']
+      const headers = ['Tarea', 'Proyecto', 'Inicio Proyecto', 'Fin Proyecto', 'Responsable', 'Inicio Tarea', 'Fin Tarea', 'Estado', 'Avance']
       const headerRow = ws.addRow(headers)
       headerRow.eachCell(cell => {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
@@ -319,13 +319,30 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         cell.border = { bottom: { style: 'thin', color: { argb: 'FF6366F1' } } }
       })
       ws.getRow(3).height = 20
-      ws.getColumn(1).width = 35; ws.getColumn(2).width = 25; ws.getColumn(3).width = 22
-      ws.getColumn(4).width = 14; ws.getColumn(5).width = 14; ws.getColumn(6).width = 16; ws.getColumn(7).width = 12
+      ws.getColumn(1).width = 35
+      ws.getColumn(2).width = 22
+      ws.getColumn(3).width = 14
+      ws.getColumn(4).width = 14
+      ws.getColumn(5).width = 22
+      ws.getColumn(6).width = 14
+      ws.getColumn(7).width = 14
+      ws.getColumn(8).width = 16
+      ws.getColumn(9).width = 12
       filteredTasks.forEach((task, i) => {
         const user = users.find(u => u.id === task.userId)
         const project = projects.find(p => p.id === task.projectId)
         const conflict = conflictIds.has(task.id)
-        const row = ws.addRow([task.name, (task as any).project?.name || project?.name || '', (task as any).user?.name || user?.name || '', format(new Date(task.startDate), 'dd/MM/yyyy'), format(new Date(task.endDate), 'dd/MM/yyyy'), getStatusLabel(task.status), `${task.progress}%`])
+        const row = ws.addRow([
+          task.name,
+          (task as any).project?.name || project?.name || '',
+          project?.startDate ? format(parseDate(project.startDate), 'dd/MM/yyyy') : '',
+          project?.endDate ? format(parseDate(project.endDate), 'dd/MM/yyyy') : '',
+          (task as any).user?.name || user?.name || '',
+          format(parseDate(task.startDate), 'dd/MM/yyyy'),
+          format(parseDate(task.endDate), 'dd/MM/yyyy'),
+          getStatusLabel(task.status),
+          `${task.progress}%`,
+        ])
         const isEven = i % 2 === 0
         row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: conflict ? 'FFFFF8E1' : isEven ? 'FFF8F9FF' : 'FFFFFFFF' } }; cell.alignment = { vertical: 'middle' }; cell.font = { size: 9 } })
         const statusColors: Record<string, string> = { 'Pendiente': 'FF9CA3AF', 'En progreso': 'FF3B82F6', 'Pausado': 'FFF59E0B', 'Terminado': 'FF10B981' }
@@ -377,7 +394,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const { default: autoTable } = await import('jspdf-autotable')
       const doc = new jsPDF({ orientation: 'landscape', format: 'a4' })
       const W = 297, H = 210, M = 12
-      const GT = 18, LW = 55, MH = 5, WH = 4, NH = 4, RH = 8
+      const GT = 18, LW = 65, MH = 5, WH = 4, NH = 4, RH = 11
       const GL = M + LW, GW = W - M - GL, CW = GW / days.length
       const todayX = GL + differenceInDays(today, rangeStart) * CW
       const totalHeaderH = MH + WH + NH
@@ -467,12 +484,25 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       pdfDrawHeader(doc, W, M, 'KRONOZ — Detalle de Tareas')
       autoTable(doc, {
         startY: 20,
-        head: [['Tarea', 'Proyecto', 'Responsable', 'Inicio', 'Fin', 'Estado', 'Avance']],
-        body: filteredTasks.map((t) => [t.name, (t as any).project?.name || '', (t as any).user?.name || '', format(parseDate(t.startDate), 'dd/MM/yyyy'), format(parseDate(t.endDate), 'dd/MM/yyyy'), getStatusLabel(t.status), `${t.progress}%`]),
+        head: [['Tarea', 'Proyecto', 'Inicio Proyecto', 'Fin Proyecto', 'Responsable', 'Inicio Tarea', 'Fin Tarea', 'Estado', 'Avance']],
+        body: filteredTasks.map((t) => {
+          const proj = projects.find(p => p.id === t.projectId)
+          return [
+            t.name,
+            (t as any).project?.name || '',
+            proj?.startDate ? format(parseDate(proj.startDate), 'dd/MM/yyyy') : '',
+            proj?.endDate ? format(parseDate(proj.endDate), 'dd/MM/yyyy') : '',
+            (t as any).user?.name || '',
+            format(parseDate(t.startDate), 'dd/MM/yyyy'),
+            format(parseDate(t.endDate), 'dd/MM/yyyy'),
+            getStatusLabel(t.status),
+            `${t.progress}%`,
+          ]
+        }),
         headStyles: { fillColor: [79, 82, 200], textColor: 255, fontSize: 7, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7, textColor: [40, 45, 80] },
         alternateRowStyles: { fillColor: [242, 243, 252] },
-        columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 50 }, 2: { cellWidth: 45 }, 3: { cellWidth: 25 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 }, 6: { cellWidth: 18 } },
+        columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 35 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 35 }, 5: { cellWidth: 22 }, 6: { cellWidth: 22 }, 7: { cellWidth: 22 }, 8: { cellWidth: 14 } },
         margin: { left: M, right: M },
       })
 
@@ -601,7 +631,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                         {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                         <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
                         <div className={cn('absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all', conflict && 'ring-2 ring-amber-400')}
-                          style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 22, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
+                          style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 26, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
                           onClick={() => setSelectedTask(task)}>
                           <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
                           {cellWidth >= 28 && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
@@ -658,7 +688,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                           {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                           <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
                           <div className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
-                            style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 10, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
+                            style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 14, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
                             onClick={() => setSelectedTask(task)}>
                             <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
                             {cellWidth >= 28 && width > 40 && <span className="relative text-white text-[9px] font-medium px-1 truncate z-10 leading-none flex items-center h-full">{task.name}</span>}
