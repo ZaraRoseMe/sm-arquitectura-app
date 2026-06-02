@@ -1,13 +1,14 @@
 'use client'
 // src/components/gantt/GanttClient.tsx
 import { useState, useMemo } from 'react'
-import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X, FileSpreadsheet, ExternalLink } from 'lucide-react'
-import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths } from 'date-fns'
+import { Download, ZoomIn, ZoomOut, AlertTriangle, Users, Folder, CalendarCheck, X, FileSpreadsheet, ExternalLink, Calendar } from 'lucide-react'
+import { subDays, startOfMonth, endOfMonth, eachDayOfInterval, format, isWeekend, isSameDay, isSameMonth, differenceInDays, addMonths, subMonths, startOfWeek, addWeeks, eachWeekOfInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, getStatusLabel, getInitials, detectConflicts, parseDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Task } from '@/types'
 import TaskModal from '@/components/tasks/TaskModal'
+import GanttWeeklyView from './GanttWeeklyView'
 
 interface GanttClientProps {
   tasks: Task[]
@@ -21,12 +22,24 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const DAY_WIDTH_OPTIONS = [20, 28, 40]
+const WEEK_WIDTH = 48 // px por semana en vista semanal
 type ColorMode = 'status' | 'user' | 'project'
 type GroupMode = 'user' | 'project'
+type ViewMode = 'days' | 'weeks'
 
 function hexToRgb(hex: string) {
   const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   return r ? { r: parseInt(r[1], 16), g: parseInt(r[2], 16), b: parseInt(r[3], 16) } : { r: 99, g: 102, b: 241 }
+}
+
+// Obtiene el lunes de la semana que contiene la fecha
+function getMondayOf(d: Date): Date {
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(d)
+  monday.setDate(d.getDate() + diff)
+  monday.setHours(0, 0, 0, 0)
+  return monday
 }
 
 function DayCell({ day, cellWidth }: { day: Date; cellWidth: number }) {
@@ -120,6 +133,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [colorMode, setColorMode] = useState<ColorMode>('status')
   const [groupMode, setGroupMode] = useState<GroupMode>('project')
+  const [viewMode, setViewMode] = useState<ViewMode>('days')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
 
@@ -127,11 +141,38 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
   const isCurrentMonth = isSameMonth(currentDate, today)
   const cellWidth = DAY_WIDTH_OPTIONS[dayWidth]
 
+  // ─── Rango días ────────────────────────────────────────────────────────────
   const rangeStartRaw = isCurrentMonth ? subDays(today, 15) : startOfMonth(subMonths(currentDate, 1))
   const rangeStart = new Date(rangeStartRaw.getFullYear(), rangeStartRaw.getMonth(), rangeStartRaw.getDate(), 0, 0, 0, 0)
   const rangeEnd = endOfMonth(addMonths(currentDate, 1))
   const days = eachDayOfInterval({ start: rangeStart, end: rangeEnd })
-  const effectiveRangeStart = rangeStart
+
+  // ─── Rango semanas ─────────────────────────────────────────────────────────
+  // Para la vista semanal mostramos 6 meses desde el mes actual
+  const weekRangeStart = getMondayOf(startOfMonth(subMonths(currentDate, 1)))
+  const weekRangeEnd = endOfMonth(addMonths(currentDate, 4))
+  const weeks = useMemo(() => {
+    const result: Date[] = []
+    let cur = new Date(weekRangeStart)
+    while (cur <= weekRangeEnd) {
+      result.push(new Date(cur))
+      cur = addWeeks(cur, 1)
+    }
+    return result
+  }, [weekRangeStart.toISOString(), weekRangeEnd.toISOString()])
+
+  // Meses agrupados para vista semanal
+  const weekMonths = useMemo(() => {
+    const result: { label: string; weeks: Date[] }[] = []
+    let cm = ''; let cw: Date[] = []
+    weeks.forEach(w => {
+      const ml = format(w, 'MMMM yyyy', { locale: es })
+      if (ml !== cm) { if (cw.length) result.push({ label: cm, weeks: cw }); cm = ml; cw = [] }
+      cw.push(w)
+    })
+    if (cw.length) result.push({ label: cm, weeks: cw })
+    return result
+  }, [weeks])
 
   const months = useMemo(() => {
     const result: { label: string; days: Date[] }[] = []
@@ -187,6 +228,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     return STATUS_COLORS[task.status] || '#9CA3AF'
   }
 
+  // Posición en vista días
   function getPos(task: Task) {
     const taskStart = parseDate(task.startDate)
     const taskEnd = parseDate(task.endDate)
@@ -195,6 +237,21 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     const fullWidth = (differenceInDays(taskEnd, taskStart) + 1) * cellWidth
     const hiddenDays = taskStart < rangeStart ? differenceInDays(rangeStart, taskStart) : 0
     const width = Math.max(cellWidth, fullWidth - hiddenDays * cellWidth)
+    return { left, width }
+  }
+
+  // Posición en vista semanas
+  function getWeekPos(task: Task) {
+    const taskStart = parseDate(task.startDate)
+    const taskEnd = parseDate(task.endDate)
+    const startMonday = getMondayOf(taskStart < weekRangeStart ? weekRangeStart : taskStart)
+    const endMonday = getMondayOf(taskEnd)
+    const startIdx = weeks.findIndex(w => w.getTime() === startMonday.getTime())
+    const endIdx = weeks.findIndex(w => w.getTime() === endMonday.getTime())
+    const si = startIdx === -1 ? 0 : startIdx
+    const ei = endIdx === -1 ? weeks.length - 1 : endIdx
+    const left = si * WEEK_WIDTH
+    const width = Math.max(WEEK_WIDTH, (ei - si + 1) * WEEK_WIDTH)
     return { left, width }
   }
 
@@ -214,10 +271,35 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     return { left, width, progress }
   }
 
-  const todayOffset = differenceInDays(today, effectiveRangeStart) * cellWidth
-  const LABEL_W = 260
+  function getProjectBarWeeks(project: { startDate?: any; endDate?: any }, tasks: Task[]) {
+    if (!project.startDate || !project.endDate) return null
+    const sd = String(project.startDate).substring(0, 10).split('-').map(Number)
+    const ed = String(project.endDate).substring(0, 10).split('-').map(Number)
+    const startDate = new Date(sd[0], sd[1]-1, sd[2])
+    const endDate = new Date(ed[0], ed[1]-1, ed[2])
+    const startMonday = getMondayOf(startDate < weekRangeStart ? weekRangeStart : startDate)
+    const endMonday = getMondayOf(endDate)
+    const si = weeks.findIndex(w => w.getTime() === startMonday.getTime())
+    const ei = weeks.findIndex(w => w.getTime() === endMonday.getTime())
+    const left = (si === -1 ? 0 : si) * WEEK_WIDTH
+    const width = Math.max(WEEK_WIDTH * 2, ((ei === -1 ? weeks.length - 1 : ei) - (si === -1 ? 0 : si) + 1) * WEEK_WIDTH)
+    const done = tasks.filter(t => t.status === 'TERMINADO').length
+    const progress = tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0
+    return { left, width, progress }
+  }
 
-  const TimelineHeader = () => (
+  const todayOffset = differenceInDays(today, rangeStart) * cellWidth
+  const todayWeekOffset = (() => {
+    const todayMonday = getMondayOf(today)
+    const idx = weeks.findIndex(w => w.getTime() === todayMonday.getTime())
+    return idx === -1 ? -1 : idx * WEEK_WIDTH + (today.getDay() === 0 ? 4 : today.getDay() - 1) * (WEEK_WIDTH / 5)
+  })()
+
+  const LABEL_W = 260
+  const totalWeeksWidth = weeks.length * WEEK_WIDTH
+
+  // ─── Header vista días ─────────────────────────────────────────────────────
+  const TimelineHeaderDays = () => (
     <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
       <div className="flex-shrink-0 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }} />
       <div className="flex-1">
@@ -233,7 +315,43 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     </div>
   )
 
-  // ─── Helpers PDF ──────────────────────────────────────────────────────────
+  // ─── Header vista semanas ──────────────────────────────────────────────────
+  const TimelineHeaderWeeks = () => (
+    <div className="flex border-b border-gray-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
+      <div className="flex-shrink-0 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }} />
+      <div style={{ width: totalWeeksWidth, position: 'relative' }}>
+        {/* Fila de meses */}
+        <div className="flex border-b border-gray-100 dark:border-neutral-800" style={{ height: 20 }}>
+          {weekMonths.map((m) => (
+            <div key={m.label} className="text-[10px] font-bold text-gray-700 dark:text-gray-300 px-2 flex items-center border-r border-gray-100 dark:border-neutral-800 capitalize bg-gray-50 dark:bg-neutral-800/40" style={{ width: m.weeks.length * WEEK_WIDTH }}>
+              {m.label}
+            </div>
+          ))}
+        </div>
+        {/* Fila de semanas */}
+        <div className="flex" style={{ height: 32 }}>
+          {weeks.map((w, i) => {
+            const fri = new Date(w); fri.setDate(w.getDate() + 4)
+            const isThisWeek = today >= w && today <= fri
+            return (
+              <div key={w.toISOString()}
+                className={cn('flex-shrink-0 flex flex-col items-center justify-center border-r text-center', isThisWeek ? 'bg-brand-600' : 'border-gray-100 dark:border-neutral-800')}
+                style={{ width: WEEK_WIDTH }}>
+                <span className={cn('text-[9px] font-bold leading-none', isThisWeek ? 'text-white' : 'text-gray-500 dark:text-gray-400')}>
+                  S{i + 1}
+                </span>
+                <span className={cn('text-[8px] leading-none mt-0.5', isThisWeek ? 'text-white/80' : 'text-gray-400 dark:text-gray-600')}>
+                  {format(w, 'd')}-{format(fri, 'd')}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ─── PDF helpers ───────────────────────────────────────────────────────────
   function pdfDrawHeader(doc: any, W: number, M: number, title: string) {
     doc.setFillColor(99, 102, 241); doc.rect(0, 0, W, 14, 'F')
     doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
@@ -302,7 +420,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const wb = new ExcelJS.Workbook()
       wb.creator = 'KRONOZ'; wb.created = new Date()
       const ws = wb.addWorksheet('Tareas')
-      ws.mergeCells('A1:G1')
+      ws.mergeCells('A1:I1')
       const titleCell = ws.getCell('A1')
       titleCell.value = `KRONOZ — Diagrama Gantt · ${format(new Date(), "MMMM yyyy", { locale: es })}`
       titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
@@ -319,15 +437,9 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         cell.border = { bottom: { style: 'thin', color: { argb: 'FF6366F1' } } }
       })
       ws.getRow(3).height = 20
-      ws.getColumn(1).width = 35
-      ws.getColumn(2).width = 22
-      ws.getColumn(3).width = 14
-      ws.getColumn(4).width = 14
-      ws.getColumn(5).width = 22
-      ws.getColumn(6).width = 14
-      ws.getColumn(7).width = 14
-      ws.getColumn(8).width = 16
-      ws.getColumn(9).width = 12
+      ws.getColumn(1).width = 35; ws.getColumn(2).width = 22; ws.getColumn(3).width = 14
+      ws.getColumn(4).width = 14; ws.getColumn(5).width = 22; ws.getColumn(6).width = 14
+      ws.getColumn(7).width = 14; ws.getColumn(8).width = 16; ws.getColumn(9).width = 12
       filteredTasks.forEach((task, i) => {
         const user = users.find(u => u.id === task.userId)
         const project = projects.find(p => p.id === task.projectId)
@@ -347,7 +459,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: conflict ? 'FFFFF8E1' : isEven ? 'FFF8F9FF' : 'FFFFFFFF' } }; cell.alignment = { vertical: 'middle' }; cell.font = { size: 9 } })
         const statusColors: Record<string, string> = { 'Pendiente': 'FF9CA3AF', 'En progreso': 'FF3B82F6', 'Pausado': 'FFF59E0B', 'Terminado': 'FF10B981' }
         const sc = statusColors[getStatusLabel(task.status)]
-        if (sc) row.getCell(6).font = { bold: true, color: { argb: sc }, size: 9 }
+        if (sc) row.getCell(8).font = { bold: true, color: { argb: sc }, size: 9 }
         if (conflict) row.getCell(1).font = { bold: true, color: { argb: 'FFF59E0B' }, size: 9 }
         row.height = 18
       })
@@ -372,7 +484,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         uRow.height = 20
         ut.forEach((task, i) => {
           const project = projects.find(p => p.id === task.projectId)
-          const row = ws2.addRow(['', task.name, (task as any).project?.name || project?.name || '', format(new Date(task.startDate), 'dd/MM/yyyy'), format(new Date(task.endDate), 'dd/MM/yyyy'), getStatusLabel(task.status), `${task.progress}%`])
+          const row = ws2.addRow(['', task.name, (task as any).project?.name || project?.name || '', format(parseDate(task.startDate), 'dd/MM/yyyy'), format(parseDate(task.endDate), 'dd/MM/yyyy'), getStatusLabel(task.status), `${task.progress}%`])
           row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: i % 2 === 0 ? 'FFF8F9FF' : 'FFFFFFFF' } }; cell.font = { size: 9 }; cell.alignment = { vertical: 'middle' } })
           row.height = 18
         })
@@ -386,7 +498,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
     } catch (err) { console.error(err); toast.dismiss(tid); toast.error('Error al generar Excel') }
   }
 
-  // ─── Exportar PDF — respeta groupMode actual ──────────────────────────────
+  // ─── Exportar PDF ──────────────────────────────────────────────────────────
   async function handleExportPDF() {
     const tid = toast.loading('Generando PDF...')
     try {
@@ -398,35 +510,26 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
       const GL = M + LW, GW = W - M - GL, CW = GW / days.length
       const todayX = GL + differenceInDays(today, rangeStart) * CW
       const totalHeaderH = MH + WH + NH
-
       const modeLabel = groupMode === 'project' ? 'Por proyecto' : 'Por colaborador'
       pdfDrawHeader(doc, W, M, `KRONOZ — Diagrama de Gantt · ${modeLabel}`)
       pdfDrawCalendarHeader(doc, GL, GW, GT, MH, WH, NH, CW, M, LW)
-
-      // Etiqueta columna izquierda
       doc.setTextColor(255, 255, 255); doc.setFontSize(5); doc.setFont('helvetica', 'bold')
       const colLabel = groupMode === 'project' ? 'PROYECTO / TAREA' : 'COLABORADOR / TAREA'
       doc.text(colLabel, M + 2, GT + totalHeaderH / 2 + 1.5)
-
       let rowY = GT + totalHeaderH
-
-      // ── Vista por PROYECTO ──────────────────────────────────────────────
       if (groupMode === 'project') {
         groupedByProject.forEach(({ project, tasks: pt }) => {
           if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
           const pRgb = hexToRgb(project.color)
-          // Fila de proyecto
           doc.setFillColor(pRgb.r, pRgb.g, pRgb.b); doc.rect(M, rowY, LW, RH * 0.85, 'F')
           doc.setFillColor(Math.min(255, pRgb.r + Math.round((255 - pRgb.r) * 0.88)), Math.min(255, pRgb.g + Math.round((255 - pRgb.g) * 0.88)), Math.min(255, pRgb.b + Math.round((255 - pRgb.b) * 0.88)))
           doc.rect(GL, rowY, GW, RH * 0.85, 'F')
           days.forEach((d, i) => { if (isWeekend(d)) { doc.setFillColor(230, 231, 245); doc.rect(GL + i * CW, rowY, CW, RH * 0.85, 'F') } })
-          // Cuadradito de color del proyecto
           doc.setFillColor(pRgb.r, pRgb.g, pRgb.b); doc.rect(M + 2, rowY + RH * 0.25, 3, 3, 'F')
           doc.setTextColor(255, 255, 255); doc.setFontSize(5.5); doc.setFont('helvetica', 'bold')
           doc.text(project.name.length > 22 ? project.name.substring(0, 21) + '…' : project.name, M + 7, rowY + RH * 0.6)
           doc.setFontSize(4); doc.setFont('helvetica', 'normal')
           doc.text(`${pt.length} tarea${pt.length !== 1 ? 's' : ''}`, M + 7, rowY + RH * 0.85)
-          // Barra resumen del proyecto
           if (project.startDate && project.endDate) {
             const sd = String(project.startDate).substring(0, 10).split('-').map(Number)
             const ed = String(project.endDate).substring(0, 10).split('-').map(Number)
@@ -439,12 +542,10 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
             const prog = pt.length > 0 ? Math.round((done / pt.length) * 100) : 0
             doc.setFillColor(pRgb.r, pRgb.g, pRgb.b)
             doc.roundedRect(bx, rowY + 1.5, bw, RH * 0.85 - 3, 0.5, 0.5, 'F')
-            if (prog > 0) { doc.setFillColor(255,255,255); doc.setGState && doc.setGState(doc.GState({ opacity: 0.3 })); doc.roundedRect(bx, rowY + 1.5, bw * (prog / 100), RH * 0.85 - 3, 0.5, 0.5, 'F') }
+            if (prog > 0) { doc.setFillColor(255,255,255); doc.roundedRect(bx, rowY + 1.5, bw * (prog / 100), RH * 0.85 - 3, 0.5, 0.5, 'F') }
           }
           doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.2); doc.line(todayX, rowY, todayX, rowY + RH * 0.85)
           rowY += RH * 0.85
-
-          // Tareas del proyecto
           pt.forEach((task) => {
             if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
             const user = users.find(u => u.id === task.userId)
@@ -454,8 +555,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
           })
           rowY += 1.5
         })
-
-      // ── Vista por USUARIO ───────────────────────────────────────────────
       } else {
         groupedByUser.forEach(({ user, tasks: ut }) => {
           if (rowY > H - 18) { doc.addPage('a4', 'landscape'); rowY = 20 }
@@ -478,8 +577,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
           rowY += 1.5
         })
       }
-
-      // ── Página de detalle ───────────────────────────────────────────────
       doc.addPage('a4', 'landscape')
       pdfDrawHeader(doc, W, M, 'KRONOZ — Detalle de Tareas')
       autoTable(doc, {
@@ -487,17 +584,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         head: [['Tarea', 'Proyecto', 'Inicio Proyecto', 'Fin Proyecto', 'Responsable', 'Inicio Tarea', 'Fin Tarea', 'Estado', 'Avance']],
         body: filteredTasks.map((t) => {
           const proj = projects.find(p => p.id === t.projectId)
-          return [
-            t.name,
-            (t as any).project?.name || '',
-            proj?.startDate ? format(parseDate(proj.startDate), 'dd/MM/yyyy') : '',
-            proj?.endDate ? format(parseDate(proj.endDate), 'dd/MM/yyyy') : '',
-            (t as any).user?.name || '',
-            format(parseDate(t.startDate), 'dd/MM/yyyy'),
-            format(parseDate(t.endDate), 'dd/MM/yyyy'),
-            getStatusLabel(t.status),
-            `${t.progress}%`,
-          ]
+          return [t.name, (t as any).project?.name || '', proj?.startDate ? format(parseDate(proj.startDate), 'dd/MM/yyyy') : '', proj?.endDate ? format(parseDate(proj.endDate), 'dd/MM/yyyy') : '', (t as any).user?.name || '', format(parseDate(t.startDate), 'dd/MM/yyyy'), format(parseDate(t.endDate), 'dd/MM/yyyy'), getStatusLabel(t.status), `${t.progress}%`]
         }),
         headStyles: { fillColor: [79, 82, 200], textColor: 255, fontSize: 7, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7, textColor: [40, 45, 80] },
@@ -505,11 +592,182 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 35 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 35 }, 5: { cellWidth: 22 }, 6: { cellWidth: 22 }, 7: { cellWidth: 22 }, 8: { cellWidth: 14 } },
         margin: { left: M, right: M },
       })
-
-      const fileName = `kronoz-gantt-${groupMode}-${format(new Date(), 'yyyy-MM')}.pdf`
-      doc.save(fileName)
+      doc.save(`kronoz-gantt-${groupMode}-${format(new Date(), 'yyyy-MM')}.pdf`)
       toast.dismiss(tid); toast.success('PDF descargado')
     } catch (err) { console.error(err); toast.dismiss(tid); toast.error('Error al generar PDF') }
+  }
+
+  // ─── Render vista semanal ──────────────────────────────────────────────────
+  const renderWeekView = () => {
+    const groups = groupMode === 'project' ? groupedByProject : null
+    const userGroups = groupMode === 'user' ? groupedByUser : null
+    const ROW_H = 40
+
+    return (
+      <div className="card overflow-hidden" style={{ background: '#F8F7F4' }}>
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: totalWeeksWidth + LABEL_W }}>
+            <TimelineHeaderWeeks />
+
+            {/* Vista por PROYECTO */}
+            {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
+              const projBar = getProjectBarWeeks(project, pt)
+              return (
+                <div key={project.id} className="border-b border-gray-200 dark:border-neutral-700">
+                  {/* Fila del proyecto */}
+                  <div className="flex items-center" style={{ backgroundColor: '#EDEDEA', minHeight: 36 }}>
+                    <div className="flex-shrink-0 px-3 py-2 border-r border-gray-200" style={{ width: LABEL_W }}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
+                        <p className="text-xs font-bold text-gray-800 truncate">{project.name}</p>
+                      </div>
+                      {project.startDate && project.endDate && (
+                        <p className="text-[10px] text-gray-500 mt-0.5 pl-4">
+                          {format(new Date(project.startDate + 'T12:00:00'), 'dd MMM yyyy', { locale: es })} → {format(new Date(project.endDate + 'T12:00:00'), 'dd MMM yyyy', { locale: es })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex-1 relative" style={{ height: 36, width: totalWeeksWidth }}>
+                      {/* Grid semanas */}
+                      {weeks.map((w, i) => {
+                        const fri = new Date(w); fri.setDate(w.getDate() + 4)
+                        const isThisWeek = today >= w && today <= fri
+                        return <div key={w.toISOString()} className="absolute top-0 bottom-0 border-r border-gray-200" style={{ left: i * WEEK_WIDTH, width: WEEK_WIDTH, backgroundColor: isThisWeek ? 'rgba(99,102,241,0.04)' : undefined }} />
+                      })}
+                      {/* Línea negra del proyecto */}
+                      {projBar && (
+                        <div className="absolute rounded-sm" style={{ left: projBar.left, width: projBar.width, height: 4, top: '50%', transform: 'translateY(-50%)', backgroundColor: '#2C2C2A', zIndex: 2 }} />
+                      )}
+                      {/* Línea de hoy */}
+                      {todayWeekOffset >= 0 && <div className="absolute top-0 bottom-0 z-10" style={{ left: todayWeekOffset, width: 2, backgroundColor: '#E24B4A' }} />}
+                    </div>
+                  </div>
+
+                  {/* Filas de tareas */}
+                  {pt.map((task, ti) => {
+                    const { left, width } = getWeekPos(task)
+                    const conflict = conflictIds.has(task.id)
+                    const barColor = getTaskColor(task, conflict)
+                    const user = users.find(u => u.id === task.userId)
+                    const taskStart = parseDate(task.startDate)
+                    const taskEnd = parseDate(task.endDate)
+                    return (
+                      <div key={task.id} className="flex items-center hover:bg-gray-50/50 transition-colors" style={{ backgroundColor: ti % 2 === 0 ? '#FFFFFF' : '#FAFAF8', minHeight: ROW_H }}>
+                        <div className="flex-shrink-0 px-3 py-2 border-r border-gray-200" style={{ width: LABEL_W }}>
+                          <div className="flex items-center gap-1.5 pl-4">
+                            {conflict && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
+                            <p className="text-xs font-medium text-gray-700 truncate">{task.name}</p>
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5 pl-4">
+                            {format(taskStart, 'dd MMM', { locale: es })} → {format(taskEnd, 'dd MMM yy', { locale: es })}
+                          </p>
+                        </div>
+                        <div className="flex-1 relative" style={{ height: ROW_H, width: totalWeeksWidth }}>
+                          {weeks.map((w, i) => {
+                            const fri = new Date(w); fri.setDate(w.getDate() + 4)
+                            const isThisWeek = today >= w && today <= fri
+                            return <div key={w.toISOString()} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: i * WEEK_WIDTH, width: WEEK_WIDTH, backgroundColor: isThisWeek ? 'rgba(99,102,241,0.03)' : undefined }} />
+                          })}
+                          {/* Barra de tarea */}
+                          <div
+                            className={cn('absolute rounded cursor-pointer transition-all', conflict && 'ring-1 ring-amber-400')}
+                            style={{ left, width, height: 22, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.65 : 1, zIndex: 2 }}
+                            onClick={() => setSelectedTask(task)}>
+                            {/* Barra de progreso */}
+                            <div className="absolute top-0 left-0 h-full rounded bg-white opacity-20" style={{ width: `${task.progress}%` }} />
+                            {/* Nombre dentro de la barra */}
+                            {width > 50 && (
+                              <span className="absolute inset-0 flex items-center px-2 text-white text-[10px] font-medium truncate z-10">
+                                {task.name}
+                              </span>
+                            )}
+                          </div>
+                          {/* Nombre del responsable al final de la barra en negro */}
+                          {user && width > 30 && (
+                            <span
+                              className="absolute text-[9px] font-medium text-gray-800 dark:text-gray-700 whitespace-nowrap z-10"
+                              style={{ left: left + width + 4, top: '50%', transform: 'translateY(-50%)' }}>
+                              {user.name.split(' ')[0]}
+                            </span>
+                          )}
+                          {/* Línea de hoy */}
+                          {todayWeekOffset >= 0 && <div className="absolute top-0 bottom-0 z-10" style={{ left: todayWeekOffset, width: 2, backgroundColor: '#E24B4A' }} />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+
+            {/* Vista por USUARIO */}
+            {groupMode === 'user' && groupedByUser.map(({ user, tasks: ut }) => (
+              <div key={user.id} className="border-b border-gray-200 dark:border-neutral-700">
+                {/* Fila del usuario */}
+                <div className="flex items-center" style={{ backgroundColor: '#EDEDEA', minHeight: 36 }}>
+                  <div className="flex-shrink-0 px-3 py-2 border-r border-gray-200 flex items-center gap-2" style={{ width: LABEL_W }}>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1' }}>{getInitials(user.name)}</div>
+                    <span className="text-xs font-bold text-gray-800">{user.name}</span>
+                  </div>
+                  <div className="flex-1 relative" style={{ height: 36, width: totalWeeksWidth }}>
+                    {weeks.map((w, i) => <div key={w.toISOString()} className="absolute top-0 bottom-0 border-r border-gray-200" style={{ left: i * WEEK_WIDTH, width: WEEK_WIDTH }} />)}
+                    {todayWeekOffset >= 0 && <div className="absolute top-0 bottom-0 z-10" style={{ left: todayWeekOffset, width: 2, backgroundColor: '#E24B4A' }} />}
+                  </div>
+                </div>
+
+                {/* Tareas */}
+                {ut.map((task, ti) => {
+                  const { left, width } = getWeekPos(task)
+                  const conflict = conflictIds.has(task.id)
+                  const barColor = getTaskColor(task, conflict)
+                  const taskStart = parseDate(task.startDate)
+                  const taskEnd = parseDate(task.endDate)
+                  const project = projects.find(p => p.id === task.projectId)
+                  return (
+                    <div key={task.id} className="flex items-center hover:bg-gray-50/50 transition-colors" style={{ backgroundColor: ti % 2 === 0 ? '#FFFFFF' : '#FAFAF8', minHeight: ROW_H }}>
+                      <div className="flex-shrink-0 px-3 py-2 border-r border-gray-200" style={{ width: LABEL_W }}>
+                        <div className="flex items-center gap-1.5">
+                          {conflict && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
+                          <p className="text-xs font-medium text-gray-700 truncate">{task.name}</p>
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {project && <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: project.color }} /><p className="text-[10px] text-gray-400">{project.name}</p></div>}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {format(taskStart, 'dd MMM', { locale: es })} → {format(taskEnd, 'dd MMM yy', { locale: es })}
+                        </p>
+                      </div>
+                      <div className="flex-1 relative" style={{ height: ROW_H, width: totalWeeksWidth }}>
+                        {weeks.map((w, i) => <div key={w.toISOString()} className="absolute top-0 bottom-0 border-r border-gray-100" style={{ left: i * WEEK_WIDTH, width: WEEK_WIDTH }} />)}
+                        <div
+                          className={cn('absolute rounded cursor-pointer transition-all', conflict && 'ring-1 ring-amber-400')}
+                          style={{ left, width, height: 22, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.65 : 1, zIndex: 2 }}
+                          onClick={() => setSelectedTask(task)}>
+                          <div className="absolute top-0 left-0 h-full rounded bg-white opacity-20" style={{ width: `${task.progress}%` }} />
+                          {width > 50 && <span className="absolute inset-0 flex items-center px-2 text-white text-[10px] font-medium truncate z-10">{task.name}</span>}
+                        </div>
+                        {/* Nombre responsable al final de la barra */}
+                        {width > 30 && (
+                          <span className="absolute text-[9px] font-medium text-gray-800 whitespace-nowrap z-10"
+                            style={{ left: left + width + 4, top: '50%', transform: 'translateY(-50%)' }}>
+                            {user.name.split(' ')[0]}
+                          </span>
+                        )}
+                        {todayWeekOffset >= 0 && <div className="absolute top-0 bottom-0 z-10" style={{ left: todayWeekOffset, width: 2, backgroundColor: '#E24B4A' }} />}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+
+            {(groupMode === 'user' ? groupedByUser : groupedByProject).length === 0 && (
+              <div className="py-16 text-center"><p className="text-gray-500 text-sm">No hay tareas para mostrar</p></div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -518,20 +776,15 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         <TaskDetailPopup task={selectedTask} users={users} projects={projects}
           onClose={() => setSelectedTask(null)} onOpenTask={(task) => setEditTask(task)} />
       )}
-
       {editTask && (
-        <TaskModal
-          task={editTask}
-          projects={projects.map(p => ({ ...p, children: [] }))}
-          users={users} isAdmin={isAdmin} currentUserId="" currentUserName=""
+        <TaskModal task={editTask} projects={projects.map(p => ({ ...p, children: [] }))} users={users} isAdmin={isAdmin} currentUserId="" currentUserName=""
           onClose={() => setEditTask(null)}
           onSave={async (taskData) => {
             const res = await fetch(`/api/tasks/${editTask.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(taskData) })
             if (res.ok) { toast.success('Tarea actualizada'); setEditTask(null); window.location.reload() }
             else toast.error('Error al guardar')
             return res.ok
-          }}
-        />
+          }} />
       )}
 
       <div className="page-header">
@@ -540,6 +793,7 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{filteredTasks.length} tareas visualizadas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Agrupación */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
             <button onClick={() => setGroupMode('user')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', groupMode === 'user' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
               <Users className="w-3 h-3" /> Por usuario
@@ -548,18 +802,37 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
               <Folder className="w-3 h-3" /> Por proyecto
             </button>
           </div>
+
+          {/* Vista días / semanas */}
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
-            {(['status', 'user', 'project'] as ColorMode[]).map((mode) => (
-              <button key={mode} onClick={() => setColorMode(mode)} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all', colorMode === mode ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-                {mode === 'status' ? 'Estado' : mode === 'user' ? 'Usuario' : 'Proyecto'}
-              </button>
-            ))}
+            <button onClick={() => setViewMode('days')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', viewMode === 'days' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              <Calendar className="w-3 h-3" /> Días
+            </button>
+            <button onClick={() => setViewMode('weeks')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', viewMode === 'weeks' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              <Calendar className="w-3 h-3" /> Semanas
+            </button>
           </div>
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
-            <button onClick={() => setDayWidth(Math.max(0, dayWidth - 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomOut className="w-3.5 h-3.5" /></button>
-            <span className="text-xs text-gray-500 px-1">{cellWidth}px</span>
-            <button onClick={() => setDayWidth(Math.min(DAY_WIDTH_OPTIONS.length - 1, dayWidth + 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomIn className="w-3.5 h-3.5" /></button>
-          </div>
+
+          {/* Color (solo vista días) */}
+          {viewMode === 'days' && (
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
+              {(['status', 'user', 'project'] as ColorMode[]).map((mode) => (
+                <button key={mode} onClick={() => setColorMode(mode)} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all', colorMode === mode ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+                  {mode === 'status' ? 'Estado' : mode === 'user' ? 'Usuario' : 'Proyecto'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Zoom (solo vista días) */}
+          {viewMode === 'days' && (
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-800 rounded-lg p-1">
+              <button onClick={() => setDayWidth(Math.max(0, dayWidth - 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomOut className="w-3.5 h-3.5" /></button>
+              <span className="text-xs text-gray-500 px-1">{cellWidth}px</span>
+              <button onClick={() => setDayWidth(Math.min(DAY_WIDTH_OPTIONS.length - 1, dayWidth + 1))} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white dark:hover:bg-neutral-700"><ZoomIn className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
+
           <button onClick={handleExportExcel} className="btn-secondary flex items-center gap-2 text-sm text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20">
             <FileSpreadsheet className="w-4 h-4" /> Excel
           </button>
@@ -582,158 +855,184 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
         </div>
       )}
 
+      {/* Leyenda */}
       <div className="flex flex-wrap items-center gap-4 text-xs">
-        {colorMode === 'status' && Object.entries(STATUS_COLORS).map(([s, c]) => (
+        {viewMode === 'days' && colorMode === 'status' && Object.entries(STATUS_COLORS).map(([s, c]) => (
           <div key={s} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: c }} /><span className="text-gray-500">{getStatusLabel(s)}</span></div>
         ))}
-        {colorMode === 'user' && users.map((u) => (
+        {viewMode === 'days' && colorMode === 'user' && users.map((u) => (
           <div key={u.id} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: u.color || '#6366F1' }} /><span className="text-gray-500">{u.name}</span></div>
         ))}
-        {colorMode === 'project' && projects.map((p) => (
+        {viewMode === 'days' && colorMode === 'project' && projects.map((p) => (
           <div key={p.id} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.color }} /><span className="text-gray-500">{p.name}</span></div>
         ))}
+        {viewMode === 'weeks' && (
+          <>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-2 rounded-sm bg-gray-800" /><span className="text-gray-500">Duración del proyecto</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-px h-3 bg-red-500" /><span className="text-gray-500">Hoy</span></div>
+          </>
+        )}
         <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-amber-300 border-2 border-amber-500" /><span className="text-gray-500">Conflicto</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-gray-200 dark:bg-neutral-700" /><span className="text-gray-500">Fin de semana</span></div>
         <span className="text-gray-400 italic">Clic en una barra para ver detalle</span>
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: days.length * cellWidth + LABEL_W }}>
-            <TimelineHeader />
-            {groupMode === 'user' && groupedByUser.map(({ user, tasks: ut }) => (
-              <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
-                <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
-                  <div className="flex-shrink-0 px-3 py-2 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1' }}>{getInitials(user.name)}</div>
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{user.name}</span>
-                  </div>
-                  <div className="flex-1 h-8 relative">
-                    <div className="absolute top-0 bottom-0 w-px bg-brand-400 opacity-40 z-10" style={{ left: todayOffset }} />
-                    {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100 dark:bg-neutral-800/60" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
-                  </div>
-                </div>
-                {ut.map((task) => {
-                  const { left, width } = getPos(task)
-                  const conflict = conflictIds.has(task.id)
-                  const project = projects.find(p => p.id === task.projectId)
-                  const barColor = getTaskColor(task, conflict)
-                  return (
-                    <div key={task.id} className="flex items-center hover:bg-gray-50/50 dark:hover:bg-neutral-800/10 transition-colors">
-                      <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
-                        <div className="flex items-center gap-1.5">
-                          {conflict && <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" title={task.name}>{task.name}</p>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {project && <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} /><p className="text-[10px] text-gray-400 truncate">{project.name}</p></div>}
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <p className="text-[10px] text-gray-400">{format(parseDate(task.startDate), 'dd MMM', { locale: es })}</p>
-                          <span className="text-[10px] text-gray-300">→</span>
-                          <p className="text-[10px] text-gray-400">{format(parseDate(task.endDate), 'dd MMM yyyy', { locale: es })}</p>
-                        </div>
-                      </div>
-                      <div className="flex-1 h-10 relative" style={{ minWidth: days.length * cellWidth }}>
-                        {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
-                        <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
-                        <div className={cn('absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all', conflict && 'ring-2 ring-amber-400')}
-                          style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 26, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
-                          onClick={() => setSelectedTask(task)}>
-                          <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
-                          {cellWidth >= 28 && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
-                        </div>
-                      </div>
+      {/* Vista días */}
+      {viewMode === 'days' && (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: days.length * cellWidth + LABEL_W }}>
+              <TimelineHeaderDays />
+              {groupMode === 'user' && groupedByUser.map(({ user, tasks: ut }) => (
+                <div key={user.id} className="border-b border-gray-50 dark:border-neutral-800">
+                  <div className="flex items-center bg-gray-50/50 dark:bg-neutral-800/20 border-b border-gray-100 dark:border-neutral-800/50">
+                    <div className="flex-shrink-0 px-3 py-2 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1' }}>{getInitials(user.name)}</div>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{user.name}</span>
                     </div>
-                  )
-                })}
-              </div>
-            ))}
-            {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
-              const projBar = getProjectBar(project, pt)
-              return (
-                <div key={project.id} className="border-b border-gray-50 dark:border-neutral-800">
-                  <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50" style={{ backgroundColor: `${project.color}12` }}>
-                    <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
-                      <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-800 dark:text-white truncate">{project.name}</p>
-                        {project.startDate && project.endDate && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {format(parseDate(project.startDate), 'dd MMM yyyy', { locale: es })} → {format(parseDate(project.endDate), 'dd MMM yyyy', { locale: es })}
-                          </p>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">{pt.length} tareas</span>
-                    </div>
-                    <div className="flex-1 h-11 relative" style={{ minWidth: days.length * cellWidth }}>
-                      {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/50" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
+                    <div className="flex-1 h-8 relative">
                       <div className="absolute top-0 bottom-0 w-px bg-brand-400 opacity-40 z-10" style={{ left: todayOffset }} />
-                      {projBar && (
-                        <div className="absolute rounded-lg overflow-hidden"
-                          style={{ left: projBar.left, width: projBar.width, height: 18, top: '50%', transform: 'translateY(-50%)', backgroundColor: project.color, opacity: 0.9, borderRadius: 6 }}>
-                          <div className="h-full rounded-lg bg-white opacity-30" style={{ width: `${projBar.progress}%` }} />
-                        </div>
-                      )}
+                      {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100 dark:bg-neutral-800/60" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                     </div>
                   </div>
-                  {pt.map((task) => {
+                  {ut.map((task) => {
                     const { left, width } = getPos(task)
                     const conflict = conflictIds.has(task.id)
-                    const user = users.find(u => u.id === task.userId)
+                    const project = projects.find(p => p.id === task.projectId)
                     const barColor = getTaskColor(task, conflict)
                     return (
                       <div key={task.id} className="flex items-center hover:bg-gray-50/50 dark:hover:bg-neutral-800/10 transition-colors">
-                        <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
-                          <div className="flex items-center gap-1.5 pl-3">
-                            {conflict && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 truncate">{task.name}</p>
+                        <div className="flex-shrink-0 px-3 py-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                          <div className="flex items-center gap-1.5">
+                            {conflict && <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate" title={task.name}>{task.name}</p>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 pl-3">
-                            {user && (
-                              <div className="flex items-center gap-1">
-                                <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
-                                  {getInitials(user.name).charAt(0)}
-                                </div>
-                                <p className="text-[10px] text-gray-400">{user.name.split(' ')[0]}</p>
-                              </div>
-                            )}
-                            <p className="text-[10px] text-gray-400">{format(parseDate(task.startDate), 'dd MMM', { locale: es })} → {format(parseDate(task.endDate), 'dd MMM yy', { locale: es })}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {project && <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} /><p className="text-[10px] text-gray-400 truncate">{project.name}</p></div>}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <p className="text-[10px] text-gray-400">{format(parseDate(task.startDate), 'dd MMM', { locale: es })}</p>
+                            <span className="text-[10px] text-gray-300">→</span>
+                            <p className="text-[10px] text-gray-400">{format(parseDate(task.endDate), 'dd MMM yyyy', { locale: es })}</p>
                           </div>
                         </div>
-                        <div className="flex-1 relative" style={{ height: 32, minWidth: days.length * cellWidth }}>
+                        <div className="flex-1 h-10 relative" style={{ minWidth: days.length * cellWidth }}>
                           {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
                           <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
-                          <div className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
-                            style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 14, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
+                          <div className={cn('absolute top-1/2 -translate-y-1/2 rounded-md flex items-center px-2 overflow-hidden cursor-pointer hover:brightness-110 transition-all', conflict && 'ring-2 ring-amber-400')}
+                            style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 26, backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.7 : 1 }}
                             onClick={() => setSelectedTask(task)}>
-                            <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
-                            {cellWidth >= 28 && width > 40 && <span className="relative text-white text-[9px] font-medium px-1 truncate z-10 leading-none flex items-center h-full">{task.name}</span>}
+                            <div className="absolute top-0 left-0 h-full rounded-md opacity-25 bg-white" style={{ width: `${task.progress}%` }} />
+                            {cellWidth >= 28 && <span className="relative text-white text-xs font-medium truncate z-10">{task.name}</span>}
                           </div>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-              )
-            })}
-            {(groupMode === 'user' ? groupedByUser : groupedByProject).length === 0 && (
-              <div className="py-16 text-center"><p className="text-gray-500 text-sm">No hay tareas para mostrar</p></div>
-            )}
+              ))}
+              {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
+                const projBar = getProjectBar(project, pt)
+                return (
+                  <div key={project.id} className="border-b border-gray-50 dark:border-neutral-800">
+                    <div className="flex items-center border-b border-gray-100 dark:border-neutral-800/50" style={{ backgroundColor: `${project.color}12` }}>
+                      <div className="flex-shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                        <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: project.color }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-gray-800 dark:text-white truncate">{project.name}</p>
+                          {project.startDate && project.endDate && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {format(new Date(project.startDate + 'T12:00:00'), 'dd MMM yyyy', { locale: es })} → {format(new Date(project.endDate + 'T12:00:00'), 'dd MMM yyyy', { locale: es })}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">{pt.length} tareas</span>
+                      </div>
+                      <div className="flex-1 h-11 relative" style={{ minWidth: days.length * cellWidth }}>
+                        {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/50" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
+                        <div className="absolute top-0 bottom-0 w-px bg-brand-400 opacity-40 z-10" style={{ left: todayOffset }} />
+                        {projBar && (
+                          <div className="absolute rounded-lg overflow-hidden"
+                            style={{ left: projBar.left, width: projBar.width, height: 18, top: '50%', transform: 'translateY(-50%)', backgroundColor: project.color, opacity: 0.9, borderRadius: 6 }}>
+                            <div className="h-full rounded-lg bg-white opacity-30" style={{ width: `${projBar.progress}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {pt.map((task) => {
+                      const { left, width } = getPos(task)
+                      const conflict = conflictIds.has(task.id)
+                      const user = users.find(u => u.id === task.userId)
+                      const barColor = getTaskColor(task, conflict)
+                      return (
+                        <div key={task.id} className="flex items-center hover:bg-gray-50/50 dark:hover:bg-neutral-800/10 transition-colors">
+                          <div className="flex-shrink-0 px-3 py-1.5 border-r border-gray-100 dark:border-neutral-800" style={{ width: LABEL_W }}>
+                            <div className="flex items-center gap-1.5 pl-3">
+                              {conflict && <AlertTriangle className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />}
+                              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 truncate">{task.name}</p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 pl-3">
+                              {user && (
+                                <div className="flex items-center gap-1">
+                                  <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: user.color || '#6366F1', fontSize: 7 }}>
+                                    {getInitials(user.name).charAt(0)}
+                                  </div>
+                                  <p className="text-[10px] text-gray-400">{user.name.split(' ')[0]}</p>
+                                </div>
+                              )}
+                              <p className="text-[10px] text-gray-400">{format(parseDate(task.startDate), 'dd MMM', { locale: es })} → {format(parseDate(task.endDate), 'dd MMM yy', { locale: es })}</p>
+                            </div>
+                          </div>
+                          <div className="flex-1 relative" style={{ height: 32, minWidth: days.length * cellWidth }}>
+                            {days.map((d, i) => isWeekend(d) ? <div key={d.toISOString()} className="absolute top-0 bottom-0 bg-gray-100/70 dark:bg-neutral-800/40" style={{ left: i * cellWidth, width: cellWidth }} /> : null)}
+                            <div className="absolute top-0 bottom-0 w-px bg-brand-400 z-10" style={{ left: todayOffset }} />
+                            <div className={cn('absolute rounded cursor-pointer hover:brightness-110 transition-all overflow-hidden', conflict && 'ring-1 ring-amber-400')}
+                              style={{ left: Math.max(0, left), width: Math.max(cellWidth, width), height: 14, top: '50%', transform: 'translateY(-50%)', backgroundColor: barColor, opacity: task.status === 'TERMINADO' ? 0.6 : 1, borderRadius: 4 }}
+                              onClick={() => setSelectedTask(task)}>
+                              <div className="absolute top-0 left-0 h-full bg-white opacity-25" style={{ width: `${task.progress}%` }} />
+                              {cellWidth >= 28 && width > 40 && <span className="relative text-white text-[9px] font-medium px-1 truncate z-10 leading-none flex items-center h-full">{task.name}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+              {(groupMode === 'user' ? groupedByUser : groupedByProject).length === 0 && (
+                <div className="py-16 text-center"><p className="text-gray-500 text-sm">No hay tareas para mostrar</p></div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="btn-secondary">← Mes anterior</button>
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[120px] text-center">{format(currentDate, 'MMMM yyyy', { locale: es })}</span>
-        <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="btn-secondary">Mes siguiente →</button>
-        {!isCurrentMonth && (
-          <button onClick={() => setCurrentDate(new Date())} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
-            <CalendarCheck className="w-3.5 h-3.5" /> Hoy
-          </button>
-        )}
-      </div>
+      {/* Vista semanas */}
+      {viewMode === 'weeks' && (
+        <GanttWeeklyView
+          tasks={filteredTasks}
+          users={users}
+          projects={projects}
+          groupedByProject={groupedByProject}
+          groupedByUser={groupedByUser}
+          groupMode={groupMode}
+          colorMode={colorMode}
+          conflictIds={conflictIds}
+          onSelectTask={(task) => setSelectedTask(task)}
+        />
+      )}
+
+      {viewMode === 'days' && (
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="btn-secondary">← Mes anterior</button>
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-[120px] text-center">{format(currentDate, 'MMMM yyyy', { locale: es })}</span>
+          <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="btn-secondary">Mes siguiente →</button>
+          {!isCurrentMonth && (
+            <button onClick={() => setCurrentDate(new Date())} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
+              <CalendarCheck className="w-3.5 h-3.5" /> Hoy
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
