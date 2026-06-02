@@ -824,9 +824,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
             <button onClick={() => setViewMode('days')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', viewMode === 'days' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
               <Calendar className="w-3 h-3" /> Días
             </button>
-            <button onClick={() => setViewMode('weeks')} className={cn('px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1', viewMode === 'weeks' ? 'bg-white dark:bg-neutral-700 text-gray-800 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-              <Calendar className="w-3 h-3" /> Semanas
-            </button>
           </div>
 
           {/* Color (solo vista días) */}
