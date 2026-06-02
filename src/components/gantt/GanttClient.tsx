@@ -954,10 +954,6 @@ export default function GanttClient({ tasks: initialTasks, users, projects, isAd
                       </div>
                     )
                   })}
-                        </div>
-                      </div>
-                    )
-                  })}
                 </div>
               ))}
               {groupMode === 'project' && groupedByProject.map(({ project, tasks: pt }) => {
