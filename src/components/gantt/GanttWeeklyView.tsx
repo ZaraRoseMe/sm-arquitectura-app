@@ -52,12 +52,14 @@ function lighten(hex: string, amount = 0.85): string {
   return `rgb(${lr},${lg},${lb})`
 }
 
-const WEEK_W = 72   // px por semana
-const LABEL_W = 280 // px columna izquierda
-const ROW_H = 40    // px fila tarea
-const PROJ_H = 48   // px fila proyecto
-const MONTH_H = 20  // px fila mes
-const WEEK_H = 28   // px fila semana
+const WEEK_W = 72
+const NAME_W = 180
+const DATE_W = 70
+const LABEL_W = NAME_W + DATE_W + DATE_W
+const ROW_H = 40
+const PROJ_H = 48
+const MONTH_H = 20
+const WEEK_H = 28
 
 export default function GanttWeeklyView({
   tasks, users, projects, groupedByProject, groupedByUser,
@@ -127,7 +129,15 @@ export default function GanttWeeklyView({
 
           {/* Fila de meses */}
           <div className="flex" style={{ height: MONTH_H }}>
-            <div style={{ width: LABEL_W, flexShrink: 0 }} className="border-r border-b border-gray-200" />
+            <div style={{ width: NAME_W, flexShrink: 0 }} className="border-r border-b border-gray-200 bg-gray-50 flex items-center px-3">
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Tarea</span>
+            </div>
+            <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-b border-gray-200 bg-gray-50 flex items-center justify-center">
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Inicio</span>
+            </div>
+            <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-b border-gray-200 bg-gray-50 flex items-center justify-center">
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Fin</span>
+            </div>
             {monthGroups.map((mg, i) => (
               <div key={i}
                 className="border-r border-b border-gray-200 flex items-center px-2"
@@ -141,12 +151,9 @@ export default function GanttWeeklyView({
 
           {/* Fila de semanas */}
           <div className="flex" style={{ height: WEEK_H }}>
-            <div style={{ width: LABEL_W, flexShrink: 0 }}
-              className="border-r border-b border-gray-200 flex items-center px-3">
-              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
-                {groupMode === 'project' ? 'Proyecto / Tarea' : 'Usuario / Tarea'}
-              </span>
-            </div>
+            <div style={{ width: NAME_W, flexShrink: 0 }} className="border-r border-b border-gray-200 bg-gray-50" />
+            <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-b border-gray-200 bg-gray-50" />
+            <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-b border-gray-200 bg-gray-50" />
             {weeks.map((mon, i) => {
               const fri = addDays(mon, 4)
               const isThisWeek = today >= mon && today <= addDays(mon, 6)
@@ -224,20 +231,19 @@ export default function GanttWeeklyView({
               <div key={project.id}>
                 {/* Fila encabezado proyecto */}
                 <div className="flex border-b border-gray-200" style={{ height: PROJ_H, background: lighten(pColor, 0.92) }}>
-                  <div style={{ width: LABEL_W, flexShrink: 0 }}
-                    className="border-r border-gray-200 flex flex-col justify-center px-3 gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <div style={{ width: 10, height: 10, borderRadius: 2, background: pColor, flexShrink: 0 }} />
-                      <span className="text-xs font-bold text-gray-800 truncate">{project.name}</span>
-                      <span className="text-[10px] text-gray-400 flex-shrink-0 ml-auto">{pt.length} tareas</span>
+                  <div style={{ width: NAME_W, flexShrink: 0 }}
+                    className="border-r border-gray-200 flex items-center px-3 gap-2">
+                    <div style={{ width: 10, height: 10, borderRadius: 2, background: pColor, flexShrink: 0 }} />
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-gray-800 truncate block">{project.name}</span>
+                      <span className="text-[10px] text-gray-400">{pt.length} tareas</span>
                     </div>
-                    {project.startDate && project.endDate && (
-                      <p className="text-[10px] text-gray-500 pl-4">
-                        {format(new Date(String(project.startDate).substring(0, 10) + 'T12:00:00'), 'dd MMM yyyy', { locale: es })}
-                        {' → '}
-                        {format(new Date(String(project.endDate).substring(0, 10) + 'T12:00:00'), 'dd MMM yyyy', { locale: es })}
-                      </p>
-                    )}
+                  </div>
+                  <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-200 flex items-center justify-center">
+                    {project.startDate && <span className="text-[10px] text-gray-500">{format(new Date(String(project.startDate).substring(0, 10) + 'T12:00:00'), 'dd MMM yy', { locale: es })}</span>}
+                  </div>
+                  <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-200 flex items-center justify-center">
+                    {project.endDate && <span className="text-[10px] text-gray-500">{format(new Date(String(project.endDate).substring(0, 10) + 'T12:00:00'), 'dd MMM yy', { locale: es })}</span>}
                   </div>
                   <div style={{ flex: 1, position: 'relative', minWidth: totalW }}>
                     {projBarEl}
@@ -257,12 +263,15 @@ export default function GanttWeeklyView({
                   return (
                     <div key={task.id} className="flex border-b border-gray-100"
                       style={{ height: ROW_H, background: ti % 2 === 0 ? '#FFFFFF' : '#FAFAF8' }}>
-                      <div style={{ width: LABEL_W, flexShrink: 0 }}
-                        className="border-r border-gray-100 flex flex-col justify-center px-3 pl-6 gap-0.5">
+                      <div style={{ width: NAME_W, flexShrink: 0 }}
+                        className="border-r border-gray-100 flex items-center px-3 pl-6">
                         <p className="text-xs text-gray-700 truncate font-medium">{task.name}</p>
-                        <p className="text-[10px] text-gray-400">
-                          {format(ts, 'dd MMM', { locale: es })} → {format(te, 'dd MMM yy', { locale: es })}
-                        </p>
+                      </div>
+                      <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-100 flex items-center justify-center">
+                        <span className="text-[10px] text-gray-500">{format(ts, 'dd MMM yy', { locale: es })}</span>
+                      </div>
+                      <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-100 flex items-center justify-center">
+                        <span className="text-[10px] text-gray-500">{format(te, 'dd MMM yy', { locale: es })}</span>
                       </div>
                       <div style={{ flex: 1, position: 'relative', minWidth: totalW }}>
                         {/* Barra */}
@@ -319,7 +328,7 @@ export default function GanttWeeklyView({
               <div key={user.id}>
                 {/* Fila encabezado usuario */}
                 <div className="flex border-b border-gray-200" style={{ height: PROJ_H, background: lighten(uColor, 0.92) }}>
-                  <div style={{ width: LABEL_W, flexShrink: 0 }}
+                  <div style={{ width: NAME_W, flexShrink: 0 }}
                     className="border-r border-gray-200 flex items-center px-3 gap-2">
                     <div style={{
                       width: 28, height: 28, borderRadius: '50%', background: uColor,
@@ -333,6 +342,8 @@ export default function GanttWeeklyView({
                       <p className="text-[10px] text-gray-400">{ut.length} tarea{ut.length !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
+                  <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-200" />
+                  <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-200" />
                   <div style={{ flex: 1, position: 'relative', minWidth: totalW }} />
                 </div>
 
@@ -349,20 +360,21 @@ export default function GanttWeeklyView({
                   return (
                     <div key={task.id} className="flex border-b border-gray-100"
                       style={{ height: ROW_H, background: ti % 2 === 0 ? '#FFFFFF' : '#FAFAF8' }}>
-                      <div style={{ width: LABEL_W, flexShrink: 0 }}
+                      <div style={{ width: NAME_W, flexShrink: 0 }}
                         className="border-r border-gray-100 flex flex-col justify-center px-3 pl-6 gap-0.5">
                         <p className="text-xs text-gray-700 truncate font-medium">{task.name}</p>
-                        <div className="flex items-center gap-1.5">
-                          {project && (
-                            <div className="flex items-center gap-1">
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: project.color, flexShrink: 0 }} />
-                              <p className="text-[10px] text-gray-400 truncate">{project.name}</p>
-                            </div>
-                          )}
-                          <p className="text-[10px] text-gray-400">
-                            {format(ts, 'dd MMM', { locale: es })} → {format(te, 'dd MMM yy', { locale: es })}
-                          </p>
-                        </div>
+                        {project && (
+                          <div className="flex items-center gap-1">
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: project.color, flexShrink: 0 }} />
+                            <p className="text-[10px] text-gray-400 truncate">{project.name}</p>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-100 flex items-center justify-center">
+                        <span className="text-[10px] text-gray-500">{format(ts, 'dd MMM yy', { locale: es })}</span>
+                      </div>
+                      <div style={{ width: DATE_W, flexShrink: 0 }} className="border-r border-gray-100 flex items-center justify-center">
+                        <span className="text-[10px] text-gray-500">{format(te, 'dd MMM yy', { locale: es })}</span>
                       </div>
                       <div style={{ flex: 1, position: 'relative', minWidth: totalW }}>
                         <div
